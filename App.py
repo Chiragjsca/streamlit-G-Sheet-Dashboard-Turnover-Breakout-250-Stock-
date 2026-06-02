@@ -14,7 +14,7 @@ import streamlit.components.v1 as components
 # ==========================================
 # ⚙️ PAGE CONFIGURATION
 # ==========================================
-st.set_page_config(page_title="NSE Stock Dashboard", layout="wide", page_icon="📊")
+st.set_page_config(page_title="Top 250 NSE Stock-Turnover Breakout Dashboard", layout="wide", page_icon="📊")
 
 # ==========================================
 # 🔐 ADMIN LOGIN SYSTEM
@@ -42,7 +42,7 @@ if not st.session_state.logged_in:
 # ==========================================
 # 🌍 GLOBAL MARKET TICKER (TRADINGVIEW)
 # ==========================================
-st.title("📊 NSE Stock Market Dashboard")
+st.title("📊 Top 250 NSE Stock-Turnover Breakout Dashboard")
 st.caption(f"Data refreshed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 components.html("""
