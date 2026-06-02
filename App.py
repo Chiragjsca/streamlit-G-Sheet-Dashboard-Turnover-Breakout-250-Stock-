@@ -612,7 +612,7 @@ if not raw_df.empty:
     detected_metric_map = {}
     
     for h in horizons:
-        if h == "Volume":
+        if h == "Turnover":
             if vol_target: detected_metric_map[h] = vol_target
             continue
         keywords = [h.lower(), h.lower().replace(" ", ""), h.lower().replace("s", "")]
@@ -668,7 +668,7 @@ if not raw_df.empty:
         display_perf_df = perf_df.copy()
         for h in detected_metric_map.keys():
             if h in display_perf_df.columns:
-                if h == "Volume":
+                if h == "Turnover":
                     display_perf_df[h] = display_perf_df[h].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "-")
                 else:
                     display_perf_df[h] = display_perf_df[h].apply(lambda x: f"+{x:.2f}%" if x > 0 else (f"{x:.2f}%" if x < 0 else "0.00%"))
@@ -680,7 +680,7 @@ if not raw_df.empty:
         
         color_code_js = JsCode("""
         function(params) {
-            if (params.value === undefined || params.value === null || params.colDef.field === "Volume") return null;
+            if (params.value === undefined || params.value === null || params.colDef.field === "Turnover") return null;
             let val = parseFloat(String(params.value).replace(/[+%,]/g, ''));
             if (val > 0) return { 'color': '#0f9d58', 'fontWeight': 'bold' };
             if (val < 0) return { 'color': '#ea4335', 'fontWeight': 'bold' };
