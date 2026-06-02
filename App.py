@@ -297,7 +297,7 @@ if not raw_df.empty:
     high_pct_col = next((c for c in actual_cols if "52" in c.lower() and "high" in c.lower() and ("%" in c.lower() or "per" in c.lower())), None)
     if high_pct_col: filtered_df = apply_numeric_slider(filtered_df, high_pct_col, st.sidebar, "From 52W High Range:")
 
-    numeric_targets = ["Volume", "CMP", "Price %", "Promoters %", "Institutional %", "Face Value", "Net Profit", "EPS", "RONW %", "Market Cap", "Enterprise Value"]
+    numeric_targets = ["Turnover", "CMP", "Price %", "Promoters %", "Institutional %", "Face Value", "Net Profit", "EPS", "RONW %", "Market Cap", "Enterprise Value"]
     processed_cols = {diff_200_col, low_pct_col, high_pct_col}
     for target in numeric_targets:
         col_match = next((c for c in actual_cols if target.lower() in c.lower() and c not in processed_cols), None)
@@ -321,7 +321,7 @@ if not raw_df.empty:
     if selected_symbol_col in filtered_df.columns:
         core_sequence.append(selected_symbol_col)
     
-    vol_target = next((c for c in actual_cols if "volume" in c.lower()), None)
+    vol_target = next((c for c in actual_cols if "Turnover" in c.lower()), None)
     if vol_target and vol_target not in core_sequence: core_sequence.append(vol_target)
         
     close_target = next((c for c in actual_cols if "close price" in c.lower() or "prev" in c.lower()), None)
