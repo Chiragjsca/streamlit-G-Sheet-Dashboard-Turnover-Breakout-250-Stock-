@@ -12,7 +12,7 @@ from st_aggrid.shared import GridUpdateMode
 import streamlit.components.v1 as components
 import re
 import io
-import google.generativeai as genai # NEW: AI Integration
+import google.generativeai as genai
 
 # ==========================================
 # ⚙️ PAGE CONFIGURATION
@@ -22,7 +22,6 @@ st.set_page_config(page_title="Top 250 NSE Stock-Turnover Breakout Dashboard", l
 # ==========================================
 # 🤖 CONFIGURE AI (GEMINI)
 # ==========================================
-# Checks if you have put your API key in Streamlit secrets
 if "GEMINI_API_KEY" in st.secrets:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
     ai_enabled = True
@@ -288,7 +287,6 @@ if not raw_df.empty:
     final_df = process_hyperlinks(raw_df, selected_symbol_col)
     filtered_df = final_df.copy()
 
-    # 1. Search Filter
     if search_query:
         mask = filtered_df[actual_cols].astype(str).apply(lambda x: x.str.contains(search_query, case=False, na=False)).any(axis=1)
         filtered_df = filtered_df[mask]
@@ -338,7 +336,6 @@ if not raw_df.empty:
                 
                 filtered_df = filtered_df[filtered_df[bg_col_reference].str.lower().isin(valid_hexes_to_keep)]
 
-    # 2. Categorical Filters
     st.sidebar.markdown("---")
     st.sidebar.header("🎯 Categorical Filters")
     active_filters = [c for c in actual_cols if any(key in c.lower() for key in ["cumulative average", "industry", "sector", "output", "start gtt order"])]
@@ -348,7 +345,6 @@ if not raw_df.empty:
         if selected_options:
             filtered_df = filtered_df[filtered_df[col_to_filter].isin(selected_options)]
 
-    # 3. DMA Trend Filter
     st.sidebar.markdown("---")
     st.sidebar.header("📈 DMA Trend Filter")
     dma_choice = st.sidebar.selectbox("Select DMA Condition:", [
@@ -371,7 +367,6 @@ if not raw_df.empty:
                 if dma_choice == "50 DMA < 100 DMA < 200 DMA": filtered_df = filtered_df[(s50 < s100) & (s100 < s200)]
                 elif dma_choice == "50 DMA > 100 DMA > 200 DMA": filtered_df = filtered_df[(s50 > s100) & (s100 > s200)]
 
-    # 4. Numeric Range Filters
     st.sidebar.markdown("---")
     st.sidebar.header("📊 Numeric Range Filters")
 
@@ -392,7 +387,6 @@ if not raw_df.empty:
             filtered_df = apply_numeric_slider(filtered_df, col_match, st.sidebar)
             processed_cols.add(col_match)
 
-    # 5. Date Filters
     st.sidebar.markdown("---")
     st.sidebar.header("📅 Date Filters")
     high_date_col = next((c for c in actual_cols if "52w high date" in c.lower()), None)
@@ -601,7 +595,7 @@ if not raw_df.empty:
                 "📈 Chart & Trade Info (NSE Component)", "📋 History Data (EquityPandit)", 
                 "🎯 Bullish/Bearish Zone", "📁 Screener Documents",
                 "🪁 Zerodha Portal", "📊 MarketSmith India", "📉 TradingView Symbol Profile",
-                "🤖 AI Stock Analysis" # NEW TAB
+                "🤖 AI Stock Analysis"
             ])
 
             with ws_tabs[0]:
@@ -633,9 +627,6 @@ if not raw_df.empty:
                 components.html(f'<iframe src="https://www.tradingview.com/symbols/{sym}/" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
                 
             with ws_tabs[7]:
-                # ==========================================
-                # 🤖 AI WORKSPACE INTEGRATION
-                # ==========================================
                 st.markdown(f"### 🤖 Ask Gemini About **{sym}**")
                 
                 if not ai_enabled:
@@ -643,17 +634,15 @@ if not raw_df.empty:
                 else:
                     st.write("Using the live data pulled from your dashboard, the AI can analyze technicals, ranges, and context.")
                     
-                    # Pre-fill query
                     ai_query = st.text_area("Your Query:", value=f"Based on the current data provided, give me a quick summary of the technical performance and trend for {sym}.", height=80)
                     
                     if st.button("✨ Generate AI Analysis", use_container_width=True):
                         with st.spinner(f"Analyzing {sym} data..."):
                             try:
-                                # Clean up row data so we don't pass hidden HTML/CSS columns
                                 clean_row_context = {k: v for k, v in sel_row.items() if not str(k).startswith('_')}
                                 
-                                # Setup model and prompt
-                                model = genai.GenerativeModel('gemini-1.5-flash')
+                                # Updated to gemini-2.5-flash
+                                model = genai.GenerativeModel('gemini-2.5-flash')
                                 prompt = f"""
                                 You are a professional stock market analyst evaluating Indian NSE stocks.
                                 The user is asking about the stock: {sym}.
