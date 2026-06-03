@@ -10,11 +10,27 @@ from datetime import datetime
 from st_aggrid import AgGrid, GridOptionsBuilder, JsCode
 from st_aggrid.shared import GridUpdateMode
 import streamlit.components.v1 as components
+import re
+import io
 
 # ==========================================
 # ⚙️ PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(page_title="Top 250 NSE Stock-Turnover Breakout Dashboard", layout="wide", page_icon="📊")
+
+# ==========================================
+# 🛡️ HIDE ONLY GITHUB ICON & RIGHT MENU (KEEPS LEFT MENU)
+# ==========================================
+hide_github_icon = """
+<style>
+    /* Hides exactly the right-side icon cluster (GitHub, Deploy, 3-dots) */
+    [data-testid="stHeaderActions"] {visibility: hidden;}
+    
+    /* Hides the 'Made with Streamlit' footer at the bottom */
+    footer {visibility: hidden;}
+</style>
+"""
+st.markdown(hide_github_icon, unsafe_allow_html=True)
 
 # ==========================================
 # 🔐 ADMIN LOGIN SYSTEM
@@ -89,10 +105,10 @@ def load_sheet_data_with_colors(sheet_name):
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = Credentials.from_service_account_info(service_account_info, scopes=scope)
         client = gspread.authorize(creds)
-        
+
         spreadsheet_id = "1OvX7BdWiqejOmOsSiMogC2ni-b7irWch4TC2HqR_93c"
         encoded_sheet = urllib.parse.quote(sheet_name)
-        
+
         authed_session = AuthorizedSession(creds)
         url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}?includeGridData=true&ranges={encoded_sheet}"
         response = authed_session.get(url)
@@ -100,7 +116,7 @@ def load_sheet_data_with_colors(sheet_name):
 
         if 'error' in data: return pd.DataFrame()
         if 'sheets' not in data or not data['sheets']: return pd.DataFrame()
-        
+
         sheet_data = data['sheets'][0]['data'][0]
         row_data = sheet_data.get('rowData', [])
         if not row_data: return pd.DataFrame()
@@ -115,7 +131,7 @@ def load_sheet_data_with_colors(sheet_name):
                 fmt = cell.get('effectiveFormat', {})
                 row_bgs.append(rgb_to_hex(fmt.get('backgroundColor', {})))
                 row_txts.append(rgb_to_hex(fmt.get('textFormat', {}).get('foregroundColor', {})))
-                
+
             values_list.append(row_vals)
             bg_colors_list.append(row_bgs)
             txt_colors_list.append(row_txts)
@@ -144,17 +160,17 @@ def load_sheet_data_with_colors(sheet_name):
 def process_hyperlinks(df, symbol_col):
     df_proc = df.copy()
     df_proc['_raw_symbol_'] = df_proc[symbol_col]
-    
+
     for idx, row in df_proc.iterrows():
         sym = str(row['_raw_symbol_']).strip()
         if not sym or sym == "nan": continue
-            
+
         for col in df_proc.columns:
             if col.startswith("_bg_") or col.startswith("_txt_") or col == "_raw_symbol_": continue
-                
+
             c_lower = col.lower()
             url, label = None, "🔗 Link"
-            
+
             if "trading view" in c_lower: url, label = f"https://www.tradingview.com/symbols/{sym}/", f"Tre {sym}" if not c_lower.endswith("1") else "🔗 Link"
             elif "history data" in c_lower: url, label = f"https://www.equitypandit.com/historical-data/{sym}", f"History {sym}" if not c_lower.endswith("1") else "🔗 Link"
             elif "screener" in c_lower: url, label = f"https://www.screener.in/company/{sym}", f"Scr {sym}" if not c_lower.endswith("1") else "🔗 Link"
@@ -163,16 +179,16 @@ def process_hyperlinks(df, symbol_col):
             elif "market smith" in c_lower: url, label = f"https://marketsmithindia.com/mstool/eval/{sym}/evaluation.jsp", f"ms {sym}" if not c_lower.endswith("1") else "🔗 Link"
             elif "official nse" in c_lower: url, label = f"https://www.nseindia.com/get-quotes/equity?symbol={sym}", f"nse📰 {sym}" if not c_lower.endswith("1") else "🔗 Link"
             elif "nse" in c_lower: url, label = f"https://charting.nseindia.com/?symbol={sym}-EQ", f"nse {sym}" if not c_lower.endswith("1") else "🔗 Link"
-                
-            if url: df_proc.at[idx, col] = f'<a href="{url}" target="_blank" style="text-decoration:none; color:inherit;">{label}</a>'
-                
+
+            if url: df_proc.at[idx, col] = f'<a href="{url}" target="_blank" style="text-decoration:none; color:#000000;">{label}</a>'
+
     return df_proc
 
 def apply_numeric_slider(df, col_name, st_container, display_label=None):
     if col_name in df.columns:
         num_series = df[col_name].astype(str).str.replace(r'[%,]', '', regex=True)
         num_series = pd.to_numeric(num_series, errors='coerce').replace([np.inf, -np.inf], np.nan)
-        
+
         valid_nums = num_series.dropna()
         if not valid_nums.empty:
             min_val, max_val = round(float(valid_nums.min()), 2), round(float(valid_nums.max()), 2)
@@ -187,11 +203,11 @@ def apply_date_filter(df, col_name, st_container):
         options = ["All Time", "Past 5 Days", "Past 10 Days", "Past 15 Days", "Past 20 Days", 
                    "Past 25 Days", "Past 30 Days", "Past 1 Month", "Past 2 Months", "Past 6 Months", "Past 1 Year"]
         selection = st_container.selectbox(f"{col_name}:", options, key=f"filter_date_{col_name}")
-        
+
         if selection != "All Time":
             date_series = pd.to_datetime(df[col_name], errors='coerce', dayfirst=True)
             today = pd.Timestamp.now()
-            
+
             if selection == "Past 5 Days": threshold = today - pd.Timedelta(days=5)
             elif selection == "Past 10 Days": threshold = today - pd.Timedelta(days=10)
             elif selection == "Past 15 Days": threshold = today - pd.Timedelta(days=15)
@@ -202,9 +218,25 @@ def apply_date_filter(df, col_name, st_container):
             elif selection == "Past 2 Months": threshold = today - pd.DateOffset(months=2)
             elif selection == "Past 6 Months": threshold = today - pd.DateOffset(months=6)
             elif selection == "Past 1 Year": threshold = today - pd.DateOffset(years=1)
-            
+
             return df[date_series >= threshold]
     return df
+
+def get_clean_text_length(val):
+    if pd.isna(val): return 0
+    clean_text = re.sub(r'<[^>]*>', '', str(val))
+    return len(clean_text)
+
+def clean_for_export(df):
+    """Removes HTML and hidden style columns for a clean Excel download."""
+    export_df = df.copy()
+    cols_to_drop = [c for c in export_df.columns if c.startswith("_bg_") or c.startswith("_txt_") or c == "_raw_symbol_"]
+    export_df = export_df.drop(columns=cols_to_drop, errors='ignore')
+    
+    for col in export_df.select_dtypes(include=['object']).columns:
+        export_df[col] = export_df[col].apply(lambda x: re.sub(r'<[^>]*>', '', str(x)) if pd.notnull(x) else x)
+        
+    return export_df
 
 # ==========================================
 # 📑 SIDEBAR CONTROLS 
@@ -230,26 +262,71 @@ with st.spinner("Downloading data from Google API..."):
     raw_df = load_sheet_data_with_colors(selected_sheet)
 
 if not raw_df.empty:
-    
+
     guess_idx = 0
     actual_cols = [c for c in raw_df.columns if not c.startswith("_bg_") and not c.startswith("_txt_")]
-    
+
     for i, col_name in enumerate(actual_cols):
         if col_name.lower() in ["nse code", "symbol", "ticker", "stock symbol", "id", "stock"]:
             guess_idx = i
             break
-            
+
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Settings")
     selected_symbol_col = st.sidebar.selectbox("Symbol Column:", actual_cols, index=guess_idx, key="filter_symbol_col")
-    
+
     final_df = process_hyperlinks(raw_df, selected_symbol_col)
     filtered_df = final_df.copy()
 
-    # 1. Search Bar Filter
+    # 1. Search Filter
     if search_query:
         mask = filtered_df[actual_cols].astype(str).apply(lambda x: x.str.contains(search_query, case=False, na=False)).any(axis=1)
         filtered_df = filtered_df[mask]
+
+    # ==========================================
+    # 🎨 COLOR FILTERS
+    # ==========================================
+    st.sidebar.markdown("---")
+    st.sidebar.header("🎨 Color Filters")
+    color_filter_col = st.sidebar.selectbox("Select Column to Filter by Color:", ["None"] + actual_cols, key="filter_color_col")
+    
+    if color_filter_col != "None":
+        bg_col_reference = f"_bg_{color_filter_col}"
+        if bg_col_reference in filtered_df.columns:
+            unique_hexes = filtered_df[bg_col_reference].unique()
+            
+            color_dictionary = {
+                "#ffffff": "⚪ White (Default)",
+                "#0f9d58": "🟢 Green",
+                "#ea4335": "🔴 Red",
+                "#f4b400": "🟡 Yellow",
+                "#4285f4": "🔵 Blue",
+                "#ff9900": "🟠 Orange",
+                "#b6d7a8": "🟩 Light Green",
+                "#f4cccc": "🟥 Light Red",
+                "#d9d2e9": "🟪 Light Purple"
+            }
+            
+            ui_color_options = []
+            for hx in unique_hexes:
+                hx_lower = str(hx).lower()
+                if hx_lower in color_dictionary:
+                    ui_color_options.append(color_dictionary[hx_lower])
+                else:
+                    ui_color_options.append(f"🎨 Custom Hex: {hx_lower}")
+            
+            selected_ui_colors = st.sidebar.multiselect(f"Select Colors in '{color_filter_col}':", sorted(ui_color_options), key="filter_color_selections")
+            
+            if selected_ui_colors:
+                valid_hexes_to_keep = []
+                for ui_choice in selected_ui_colors:
+                    for hex_key, name in color_dictionary.items():
+                        if name == ui_choice:
+                            valid_hexes_to_keep.append(hex_key)
+                    if ui_choice.startswith("🎨 Custom Hex: "):
+                        valid_hexes_to_keep.append(ui_choice.replace("🎨 Custom Hex: ", ""))
+                
+                filtered_df = filtered_df[filtered_df[bg_col_reference].str.lower().isin(valid_hexes_to_keep)]
 
     # 2. Categorical Filters
     st.sidebar.markdown("---")
@@ -272,11 +349,11 @@ if not raw_df.empty:
         dma50_col = next((c for c in actual_cols if "50 dma" in c.lower()), None)
         dma100_col = next((c for c in actual_cols if "100 dma" in c.lower()), None)
         dma200_col = next((c for c in actual_cols if "200 dma" in c.lower()), None)
-        
+
         if dma50_col and dma200_col:
             s50 = pd.to_numeric(filtered_df[dma50_col].astype(str).str.replace(r'[%,]', '', regex=True), errors='coerce')
             s200 = pd.to_numeric(filtered_df[dma200_col].astype(str).str.replace(r'[%,]', '', regex=True), errors='coerce')
-            
+
             if dma_choice == "50 DMA > 200 DMA": filtered_df = filtered_df[s50 > s200]
             elif dma_choice == "50 DMA < 200 DMA": filtered_df = filtered_df[s50 < s200]
             elif dma100_col:
@@ -287,7 +364,7 @@ if not raw_df.empty:
     # 4. Numeric Range Filters
     st.sidebar.markdown("---")
     st.sidebar.header("📊 Numeric Range Filters")
-    
+
     diff_200_col = next((c for c in actual_cols if "diff" in c.lower() and "200" in c.lower()), None)
     if diff_200_col: filtered_df = apply_numeric_slider(filtered_df, diff_200_col, st.sidebar, "Diff. from 200 DMA Range:")
 
@@ -297,6 +374,7 @@ if not raw_df.empty:
     high_pct_col = next((c for c in actual_cols if "52" in c.lower() and "high" in c.lower() and ("%" in c.lower() or "per" in c.lower())), None)
     if high_pct_col: filtered_df = apply_numeric_slider(filtered_df, high_pct_col, st.sidebar, "From 52W High Range:")
 
+    # Updated to target "Turnover"
     numeric_targets = ["Turnover", "CMP", "Price %", "Promoters %", "Institutional %", "Face Value", "Net Profit", "EPS", "RONW %", "Market Cap", "Enterprise Value"]
     processed_cols = {diff_200_col, low_pct_col, high_pct_col}
     for target in numeric_targets:
@@ -317,42 +395,69 @@ if not raw_df.empty:
     # 🎨 DYNAMIC COLUMN REORDERING LOGIC
     # ==========================================
     core_sequence = []
-    
+
     if selected_symbol_col in filtered_df.columns:
         core_sequence.append(selected_symbol_col)
-    
-    vol_target = next((c for c in actual_cols if "Turnover" in c.lower()), None)
-    if vol_target and vol_target not in core_sequence: core_sequence.append(vol_target)
-        
+
+    # Updated to search for Turnover
+    turnover_target = next((c for c in actual_cols if "turnover" in c.lower()), None)
+    if turnover_target and turnover_target not in core_sequence: core_sequence.append(turnover_target)
+
     close_target = next((c for c in actual_cols if "close price" in c.lower() or "prev" in c.lower()), None)
     if close_target and close_target not in core_sequence: core_sequence.append(close_target)
-        
+
     cmp_target = next((c for c in actual_cols if "cmp" in c.lower()), None)
     if cmp_target and cmp_target not in core_sequence: core_sequence.append(cmp_target)
-        
+
     pct_target = next((c for c in actual_cols if "price %" in c.lower()), None)
     if pct_target and pct_target not in core_sequence: core_sequence.append(pct_target)
-        
+
     high_target = next((c for c in actual_cols if "52" in c.lower() and "high" in c.lower() and "date" not in c.lower() and "%" not in c.lower()), None)
     if high_target and high_target not in core_sequence: core_sequence.append(high_target)
-        
+
     low_target = next((c for c in actual_cols if "52" in c.lower() and "low" in c.lower() and "date" not in c.lower() and "%" not in c.lower()), None)
     if low_target and low_target not in core_sequence: core_sequence.append(low_target)
 
     all_other_fields = [c for c in filtered_df.columns if c not in core_sequence and not c.startswith("_bg_") and not c.startswith("_txt_") and c != "_raw_symbol_"]
     hidden_meta_attributes = [c for c in filtered_df.columns if c.startswith("_bg_") or c.startswith("_txt_") or c == "_raw_symbol_"]
-    
+
     enforced_column_layout = core_sequence + all_other_fields + hidden_meta_attributes
     filtered_df = filtered_df[enforced_column_layout]
 
     # ==========================================
-    # 📌 TOP UI: ROWS COUNT & DYNAMIC QUICK LINKS
+    # 📌 TOP UI: ROWS COUNT, COLUMN WIDTH ADJUSTER & EXCEL DOWNLOAD
     # ==========================================
-    col1, col2 = st.columns([1, 4])
+    st.markdown("---")
+    
+    col_size_1, col_size_2 = st.columns([2, 3])
+    with col_size_1:
+        sizing_mode = st.radio(
+            "📏 Column Width Adjustment:", 
+            ["Default", "✅ Fit to Row 1", "✅✅ Fit to Row 2"], 
+            horizontal=True,
+            help="Automatically adjust the column widths based on the text length of the selected row."
+        )
+
+    col1, col2, col3 = st.columns([1, 1.5, 2.5])
     with col1:
         st.write(f"**Rows:** {filtered_df.shape[0]} | **Columns:** {len(actual_cols)}") 
-    
-    url_placeholder = col2.empty()
+        
+    with col2:
+        export_df = clean_for_export(filtered_df)
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            safe_sheet_name = selected_sheet[:31].replace(":", "").replace("/", "")
+            export_df.to_excel(writer, index=False, sheet_name=safe_sheet_name)
+        
+        st.download_button(
+            label="📥 Download as Excel",
+            data=buffer.getvalue(),
+            file_name=f"{selected_sheet}_Export_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
+    url_placeholder = col3.empty()
 
     # ==========================================
     # 🎨 AG GRID INITIALIZATION WITH SELECTION ENGINE
@@ -372,24 +477,41 @@ if not raw_df.empty:
     exact_mirror_style = JsCode("""
     function(params) {
         let colName = params.colDef.field;
+        let c_low = colName.toLowerCase();
+        
         let bgCol = "_bg_" + colName;
         let txtCol = "_txt_" + colName;
         
         let bgColor = params.data[bgCol];
         let txtColor = params.data[txtCol];
         
-        if (!bgColor || bgColor.toLowerCase() === '#ffffff') return null;
+        let isTargetCol = c_low.includes("cmp") || c_low.includes("close price") || c_low.includes("prev");
+        
+        if (isTargetCol) {
+            if (!bgColor || bgColor.toLowerCase() === '#ffffff') return null;
+            return {
+                'backgroundColor': bgColor,
+                'color': txtColor || '#000000',
+                'fontWeight': (txtColor === '#ffffff' || bgColor === '#0f9d58' || bgColor === '#ea4335') ? 'bold' : 'normal'
+            };
+        }
+        
+        if (!bgColor || bgColor.toLowerCase() === '#ffffff') {
+            return { 'color': '#000000' };
+        }
         
         return {
             'backgroundColor': bgColor,
-            'color': txtColor || '#000000',
-            'fontWeight': (txtColor === '#ffffff' || bgColor === '#0f9d58' || bgColor === '#ea4335') ? 'bold' : 'normal'
+            'color': '#000000',
+            'fontWeight': (bgColor === '#0f9d58' || bgColor === '#ea4335') ? 'bold' : 'normal'
         };
     }
     """)
 
     gb = GridOptionsBuilder.from_dataframe(filtered_df)
     gb.configure_selection(selection_mode="single", use_checkbox=True)
+    
+    gb.configure_side_bar(filters_panel=False, columns_panel=True)
 
     priority_columns_lower = ["nse code", "id", "company name", "stock name", "symbol", "industry", "sector"]
     is_first_visible_column = True
@@ -398,8 +520,26 @@ if not raw_df.empty:
         if col.startswith("_bg_") or col.startswith("_txt_") or col == "_raw_symbol_":
             gb.configure_column(col, hide=True)
             continue
+            
+        if sizing_mode == "✅ Fit to Row 1" and len(filtered_df) > 0:
+            char_count = get_clean_text_length(filtered_df.iloc[0][col])
+            header_count = len(str(col))
+            base_calc = int(max(char_count, header_count) * 7 + 22)
+            if is_first_visible_column: 
+                base_calc += 30 
+            width, min_width = (base_calc, 40)
+        
+        elif sizing_mode == "✅✅ Fit to Row 2" and len(filtered_df) > 1:
+            char_count = get_clean_text_length(filtered_df.iloc[1][col])
+            header_count = len(str(col))
+            base_calc = int(max(char_count, header_count) * 7 + 22)
+            if is_first_visible_column: 
+                base_calc += 30
+            width, min_width = (base_calc, 40)
+            
+        else:
+            width, min_width = (220, 150) if col.lower() in priority_columns_lower else (120, 80)
 
-        width, min_width = (220, 150) if col.lower() in priority_columns_lower else (120, 80)
         pinned_value = "left" if is_first_visible_column else None
         if is_first_visible_column: is_first_visible_column = False 
 
@@ -431,7 +571,7 @@ if not raw_df.empty:
     if selected_rows is not None and len(selected_rows) > 0:
         sel_row = selected_rows.iloc[0] if isinstance(selected_rows, pd.DataFrame) else selected_rows[0]
         sym = str(sel_row.get("_raw_symbol_", "")).strip() 
-        
+
         if sym:
             with url_placeholder.container():
                 st.markdown(
@@ -444,29 +584,29 @@ if not raw_df.empty:
                     f"[Market Smith (🔗)](https://marketsmithindia.com/mstool/eval/{sym}/evaluation.jsp) &nbsp;|&nbsp; "
                     f"[NSE URL (🔗)](https://www.nseindia.com/get-quotes/equity?symbol={sym})"
                 )
-            
+
             st.markdown(f"---")
             st.subheader(f"🛠️ Live Workspace Panel: {sym}")
             box_height = st.slider("📏 Adjust Panel Box Height (px):", min_value=300, max_value=1000, value=500, step=50, key="panel_height_slider")
-            
+
             ws_tabs = st.tabs([
                 "📈 Chart & Trade Info (NSE Component)", "📋 History Data (EquityPandit)", 
                 "🎯 Bullish/Bearish Zone", "📁 Screener Documents",
                 "🪁 Zerodha Portal", "📊 MarketSmith India", "📉 TradingView Symbol Profile"
             ])
-            
+
             with ws_tabs[0]:
                 st.markdown("**NSE Interactive Chart Frame**")
                 components.html(f'<iframe src="https://charting.nseindia.com/?symbol={sym}-EQ" width="100%" height="{box_height}" style="border:none; border-radius:5px;"></iframe>', height=box_height+20)
-            
+
             with ws_tabs[1]:
                 st.markdown("**2ND Panel: EquityPandit Historical Matrix Data**")
                 components.html(f'<iframe src="https://www.equitypandit.com/historical-data/{sym.lower()}" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
-                
+
             with ws_tabs[2]:
                 st.markdown("**3RD Panel: Bullish / Bearish Zone Indicator**")
                 components.html(f'<iframe src="https://www.equitypandit.com/share-price/{sym.lower()}#chart" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
-                
+
             with ws_tabs[3]:
                 st.markdown("**4TH Panel: Screener Corporate Filings**")
                 components.html(f'<iframe src="https://www.screener.in/company/{sym}/consolidated/" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
@@ -480,7 +620,6 @@ if not raw_df.empty:
                 components.html(f'<iframe src="https://marketsmithindia.com/mstool/eval/{sym.lower()}/evaluation.jsp" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
 
             with ws_tabs[6]:
-                # REMOVED: NSE- prefix removed to load correctly on Trading View panel
                 st.markdown("**7TH Panel: TradingView Comprehensive Asset Market Registry Summary Profile**")
                 components.html(f'<iframe src="https://www.tradingview.com/symbols/{sym}/" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
 
@@ -514,14 +653,14 @@ if not raw_df.empty:
         }
     </style>
     """, unsafe_allow_html=True)
-    
+
     mkt_tabs = st.tabs([
         "🔥 Most Active", "🚀 Volume Gainers", "🏆 Top Gainers/Losers", "⭐ 52W Boundaries", "📦 Stocks Traded", "⚖️ Advances/Declines",
         "🕒 Pre-Open Market", "⚡ Price Band Hitters", "🗺️ Index Ticker Heatmap", "🎫 IPO Tracker", "⚠️ Volume Shockers",
         "📂 Document Reports", "🖋️ TV Script Engine", "🔮 MunafaSutra Tickers", "🎯 Dhan Asset Registry", "💎 Weekly Activity Metrics",
         "🔧 ScanX Core Screener", "🚦 ScanX Live Engine", "🎨 Screener Exploration", "📈 IPO Chittorgarh", "🏷️ IPO Watch Panel", "💓 NSE Pulse"
     ])
-    
+
     with mkt_tabs[0]:
         st.markdown("[🌐 Open Matrix](https://www.nseindia.com/market-data/most-active-equities)")
         components.html('<iframe src="https://www.nseindia.com/market-data/most-active-equities" width="100%" height="500" style="border:none;"></iframe>', height=520)
@@ -594,13 +733,13 @@ if not raw_df.empty:
     # ==========================================
     st.markdown("---")
     st.markdown("### 📈 Multi-Horizon Performance Summary Matrix")
-    
+
     horizons = [
         "1 Day", "2 Day", "3 Day", "5 Day", "7 Day", "10 Day", "12 Day", "15 Days", "20 Days", "25 Days", "30 Days",
         "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months",
-        "1 Year", "18 Months", "1.5 Years", "2 Years", "2.5 Years", "3 Years", "Volume"
+        "1 Year", "18 Months", "1.5 Years", "2 Years", "2.5 Years", "3 Years", "Turnover"
     ]
-    
+
     col_tools1, col_tools2, col_tools3 = st.columns([2, 2, 3])
     with col_tools1:
         sort_basis = st.selectbox("🎯 Base Horizon for Performance Ranking:", horizons, index=0)
@@ -610,14 +749,16 @@ if not raw_df.empty:
         summary_search = st.text_input("🔍 Filter stocks inside this matrix...", placeholder="Type symbol name...", key="perf_matrix_search")
 
     detected_metric_map = {}
-    
+
     for h in horizons:
+        # Re-mapped logic for Turnover
         if h == "Turnover":
-            if vol_target: detected_metric_map[h] = vol_target
+            if turnover_target: detected_metric_map[h] = turnover_target
             continue
+            
         keywords = [h.lower(), h.lower().replace(" ", ""), h.lower().replace("s", "")]
         if h == "1 Day": keywords.append("price %")
-        
+
         for c in actual_cols:
             if any(k in c.lower() for k in keywords) and "%" in c.lower():
                 detected_metric_map[h] = c
@@ -626,48 +767,43 @@ if not raw_df.empty:
     if detected_metric_map:
         reporting_data = []
         for idx, row in filtered_df.iterrows():
-            
-            # 1. Grab the pure, unformatted symbol directly from your hidden column
-            # This completely bypasses the HTML and guarantees no "nse " prefix!
+
             clean_ticker = str(row.get('_raw_symbol_', '')).strip()
-            
             price_val = row.get(cmp_target, "") if cmp_target else ""
-            
-            # 2. Define URL and Label
+
             url = f"https://charting.nseindia.com/?symbol={clean_ticker}-EQ"
             label = clean_ticker 
-            
-            # 3. Build the HTML tag for AgGrid
-            # NOTE: Changed color:#000000 to color:inherit so it adapts to light/dark themes
-            hyperlinked_name = f'<a href="{url}" target="_blank" style="text-decoration:none; color:inherit; font-weight:bold;">{label}</a>'
-            
+
+            hyperlinked_name = f'<a href="{url}" target="_blank" style="text-decoration:none; color:#000000; font-weight:bold;">{label}</a>'
+
             entry = {
                 "STOCK NAME": hyperlinked_name,
                 "CURRENT PRICE": price_val
             }
-            
+
             for h, actual_col in detected_metric_map.items():
                 raw_val = str(row.get(actual_col, "0")).replace("%", "").replace(",", "").strip()
                 try:
                     entry[h] = float(raw_val) if raw_val not in ["", "nan", "None"] else 0.0
                 except ValueError:
                     entry[h] = 0.0
-                    
+
             reporting_data.append(entry)
-            
+
         perf_df = pd.DataFrame(reporting_data)
-        
+
         if summary_search:
             perf_df = perf_df[perf_df["STOCK NAME"].str.replace(r'<[^>]*>', '', regex=True).str.contains(summary_search, case=False, na=False)]
-            
+
         target_sort_col = sort_basis if sort_basis in perf_df.columns else perf_df.columns[2]
         ascending_flag = (sort_direction == "Worst -> Best")
         perf_df = perf_df.sort_values(by=target_sort_col, ascending=ascending_flag).reset_index(drop=True)
         perf_df.insert(0, "RANK", perf_df.index + 1)
-        
+
         display_perf_df = perf_df.copy()
         for h in detected_metric_map.keys():
             if h in display_perf_df.columns:
+                # Re-mapped logic for Turnover
                 if h == "Turnover":
                     display_perf_df[h] = display_perf_df[h].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "-")
                 else:
@@ -677,24 +813,24 @@ if not raw_df.empty:
         perf_gb.configure_column("RANK", width=80, pinned="left")
         perf_gb.configure_column("STOCK NAME", width=140, pinned="left", cellRenderer=html_renderer)
         perf_gb.configure_column("CURRENT PRICE", width=130)
-        
+
         color_code_js = JsCode("""
         function(params) {
             if (params.value === undefined || params.value === null || params.colDef.field === "Turnover") return null;
             let val = parseFloat(String(params.value).replace(/[+%,]/g, ''));
-            if (val > 0) return { 'color': '#0f9d58', 'fontWeight': 'bold' };
-            if (val < 0) return { 'color': '#ea4335', 'fontWeight': 'bold' };
+            if (val > 0) return { 'color': '#000000', 'backgroundColor': '#e6f4ea', 'fontWeight': 'bold' };
+            if (val < 0) return { 'color': '#000000', 'backgroundColor': '#fce8e6', 'fontWeight': 'bold' };
             return null;
         }
         """)
-        
+
         for h in detected_metric_map.keys():
             if h in display_perf_df.columns:
                 perf_gb.configure_column(h, width=130, cellStyle=color_code_js)
-                
+
         perf_gb.configure_grid_options(domLayout="normal", rowHeight=38, headerHeight=45, enableCellTextSelection=True)
         perf_grid_ops = perf_gb.build()
-        
+
         AgGrid(display_perf_df, gridOptions=perf_grid_ops, theme="streamlit", allow_unsafe_jscode=True, fit_columns_on_grid_load=False, height=450, width='100%', key="horizon_perf_grid")
 
     # ==========================================
@@ -708,34 +844,24 @@ if not raw_df.empty:
         temp_df = temp_df.dropna(subset=[pct_target])
         top_10 = temp_df.nlargest(10, pct_target)
         bottom_10 = temp_df.nsmallest(10, pct_target)
-        
+
         colA, colB = st.columns(2)
-        
+
         with colA:
             st.markdown("#### ⬆️ Top 10 (Daily)")
             for _, row in top_10.iterrows():
-                # Grab pure symbol directly
                 clean_s = str(row.get('_raw_symbol_', '')).strip()
                 v = row[pct_target]
-                
-                # Define URL
                 url = f"https://charting.nseindia.com/?symbol={clean_s}-EQ"
-                
-                # Clickable NSE Technical Charting Link enveloping the badge (GREEN)
-                st.markdown(f"<a href='{url}' target='_blank' style='text-decoration:none;'><div style='background-color:#16e37f; padding:8px; margin:4px; border-radius:5px; color:Black; font-weight:bold;'>{clean_s}: +{v}%</div></a>", unsafe_allow_html=True)
-                
+                st.markdown(f"<a href='{url}' target='_blank' style='text-decoration:none;'><div style='background-color:#16e37f; padding:8px; margin:4px; border-radius:5px; color:#000000; font-weight:bold;'>{clean_s}: +{v}%</div></a>", unsafe_allow_html=True)
+
         with colB:
             st.markdown("#### ⬇️ Bottom 10 (Daily)")
             for _, row in bottom_10.iterrows():
-                # Grab pure symbol directly
                 clean_s = str(row.get('_raw_symbol_', '')).strip()
                 v = row[pct_target]
-                
-                # Define URL
                 url = f"https://charting.nseindia.com/?symbol={clean_s}-EQ"
-                
-                # Clickable NSE Technical Charting Link enveloping the badge (RED/PINK)
-                st.markdown(f"<a href='{url}' target='_blank' style='text-decoration:none;'><div style='background-color:#f39991; padding:8px; margin:4px; border-radius:5px; color:Black; font-weight:bold;'>{clean_s}: {v}%</div></a>", unsafe_allow_html=True)
+                st.markdown(f"<a href='{url}' target='_blank' style='text-decoration:none;'><div style='background-color:#f39991; padding:8px; margin:4px; border-radius:5px; color:#000000; font-weight:bold;'>{clean_s}: {v}%</div></a>", unsafe_allow_html=True)
 
 else:
     st.warning("No data loaded. Check sheet sharing and secrets.")
