@@ -12,11 +12,22 @@ from st_aggrid.shared import GridUpdateMode
 import streamlit.components.v1 as components
 import re
 import io
+import google.generativeai as genai # NEW: AI Integration
 
 # ==========================================
 # ⚙️ PAGE CONFIGURATION
 # ==========================================
 st.set_page_config(page_title="Top 250 NSE Stock-Turnover Breakout Dashboard", layout="wide", page_icon="📊")
+
+# ==========================================
+# 🤖 CONFIGURE AI (GEMINI)
+# ==========================================
+# Checks if you have put your API key in Streamlit secrets
+if "GEMINI_API_KEY" in st.secrets:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+    ai_enabled = True
+else:
+    ai_enabled = False
 
 # ==========================================
 # 🛡️ HIDE ONLY GITHUB ICON & RIGHT MENU (KEEPS LEFT MENU)
@@ -228,7 +239,6 @@ def get_clean_text_length(val):
     return len(clean_text)
 
 def clean_for_export(df):
-    """Removes HTML and hidden style columns for a clean Excel download."""
     export_df = df.copy()
     cols_to_drop = [c for c in export_df.columns if c.startswith("_bg_") or c.startswith("_txt_") or c == "_raw_symbol_"]
     export_df = export_df.drop(columns=cols_to_drop, errors='ignore')
@@ -374,7 +384,6 @@ if not raw_df.empty:
     high_pct_col = next((c for c in actual_cols if "52" in c.lower() and "high" in c.lower() and ("%" in c.lower() or "per" in c.lower())), None)
     if high_pct_col: filtered_df = apply_numeric_slider(filtered_df, high_pct_col, st.sidebar, "From 52W High Range:")
 
-    # Updated to target "Turnover"
     numeric_targets = ["Turnover", "CMP", "Price %", "Promoters %", "Institutional %", "Face Value", "Net Profit", "EPS", "RONW %", "Market Cap", "Enterprise Value"]
     processed_cols = {diff_200_col, low_pct_col, high_pct_col}
     for target in numeric_targets:
@@ -399,7 +408,6 @@ if not raw_df.empty:
     if selected_symbol_col in filtered_df.columns:
         core_sequence.append(selected_symbol_col)
 
-    # Updated to search for Turnover
     turnover_target = next((c for c in actual_cols if "turnover" in c.lower()), None)
     if turnover_target and turnover_target not in core_sequence: core_sequence.append(turnover_target)
 
@@ -592,7 +600,8 @@ if not raw_df.empty:
             ws_tabs = st.tabs([
                 "📈 Chart & Trade Info (NSE Component)", "📋 History Data (EquityPandit)", 
                 "🎯 Bullish/Bearish Zone", "📁 Screener Documents",
-                "🪁 Zerodha Portal", "📊 MarketSmith India", "📉 TradingView Symbol Profile"
+                "🪁 Zerodha Portal", "📊 MarketSmith India", "📉 TradingView Symbol Profile",
+                "🤖 AI Stock Analysis" # NEW TAB
             ])
 
             with ws_tabs[0]:
@@ -622,6 +631,46 @@ if not raw_df.empty:
             with ws_tabs[6]:
                 st.markdown("**7TH Panel: TradingView Comprehensive Asset Market Registry Summary Profile**")
                 components.html(f'<iframe src="https://www.tradingview.com/symbols/{sym}/" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
+                
+            with ws_tabs[7]:
+                # ==========================================
+                # 🤖 AI WORKSPACE INTEGRATION
+                # ==========================================
+                st.markdown(f"### 🤖 Ask Gemini About **{sym}**")
+                
+                if not ai_enabled:
+                    st.warning("⚠️ Google Gemini API is not configured. Please add `GEMINI_API_KEY` to your Streamlit secrets to enable this feature.")
+                else:
+                    st.write("Using the live data pulled from your dashboard, the AI can analyze technicals, ranges, and context.")
+                    
+                    # Pre-fill query
+                    ai_query = st.text_area("Your Query:", value=f"Based on the current data provided, give me a quick summary of the technical performance and trend for {sym}.", height=80)
+                    
+                    if st.button("✨ Generate AI Analysis", use_container_width=True):
+                        with st.spinner(f"Analyzing {sym} data..."):
+                            try:
+                                # Clean up row data so we don't pass hidden HTML/CSS columns
+                                clean_row_context = {k: v for k, v in sel_row.items() if not str(k).startswith('_')}
+                                
+                                # Setup model and prompt
+                                model = genai.GenerativeModel('gemini-1.5-flash')
+                                prompt = f"""
+                                You are a professional stock market analyst evaluating Indian NSE stocks.
+                                The user is asking about the stock: {sym}.
+                                
+                                Here is the live data extracted directly from the user's dashboard for this stock:
+                                {clean_row_context}
+                                
+                                User Query: {ai_query}
+                                
+                                Please provide a clear, concise, and professional response.
+                                """
+                                
+                                response = model.generate_content(prompt)
+                                st.info(response.text)
+                                
+                            except Exception as e:
+                                st.error(f"There was an error communicating with the AI: {e}")
 
     # ==========================================
     # 🌍 NATIONAL ANALYTICS PORTAL WORKSPACE
@@ -751,7 +800,6 @@ if not raw_df.empty:
     detected_metric_map = {}
 
     for h in horizons:
-        # Re-mapped logic for Turnover
         if h == "Turnover":
             if turnover_target: detected_metric_map[h] = turnover_target
             continue
@@ -803,7 +851,6 @@ if not raw_df.empty:
         display_perf_df = perf_df.copy()
         for h in detected_metric_map.keys():
             if h in display_perf_df.columns:
-                # Re-mapped logic for Turnover
                 if h == "Turnover":
                     display_perf_df[h] = display_perf_df[h].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "-")
                 else:
