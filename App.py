@@ -335,18 +335,18 @@ def compute_bottom_fishing_score(row, actual_cols):
             else:
                 reasons.append(f"❌ CMP {diff_pct:.1f}% below 200 DMA (downtrend)")
 
-    # 3. Volume/Activity (max 10 pts)
-    vol = get_num(["volume"])
+    # 3. Turnover/Activity (max 10 pts)
+    vol = get_num(["turnover"])
     if vol and vol > 0:
         if vol >= 10_000_000:
             score += 10
-            reasons.append(f"✅ High volume: {vol:,.0f}")
+            reasons.append(f"✅ High turnover: {vol:,.0f}")
         elif vol >= 1_000_000:
             score += 6
-            reasons.append(f"🟡 Moderate volume: {vol:,.0f}")
+            reasons.append(f"🟡 Moderate turnover: {vol:,.0f}")
         else:
             score += 2
-            reasons.append(f"⚠️ Low volume: {vol:,.0f}")
+            reasons.append(f"⚠️ Low turnover: {vol:,.0f}")
 
     # 4. Zero or Low Debt (max 10 pts)
     de = get_num(["d/e ratio", "debt", "d/e"])
@@ -1100,7 +1100,7 @@ Be specific, data-driven, and actionable for a retail investor.
     horizons = [
         "1 Day", "2 Day", "3 Day", "5 Day", "7 Day", "10 Day", "12 Day", "15 Days", "20 Days", "25 Days", "30 Days",
         "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months",
-        "1 Year", "18 Months", "1.5 Years", "2 Years", "2.5 Years", "3 Years", "Volume"
+        "1 Year", "18 Months", "1.5 Years", "2 Years", "2.5 Years", "3 Years", "Turnover"
     ]
 
     col_tools1, col_tools2, col_tools3 = st.columns([2, 2, 3])
@@ -1114,7 +1114,7 @@ Be specific, data-driven, and actionable for a retail investor.
     detected_metric_map = {}
 
     for h in horizons:
-        if h == "Volume":
+        if h == "Turnover":
             if vol_target: detected_metric_map[h] = vol_target
             continue
         keywords = [h.lower(), h.lower().replace(" ", ""), h.lower().replace("s", "")]
@@ -1166,7 +1166,7 @@ Be specific, data-driven, and actionable for a retail investor.
         display_perf_df = perf_df.copy()
         for h in detected_metric_map.keys():
             if h in display_perf_df.columns:
-                if h == "Volume":
+                if h == "Turnover":
                     display_perf_df[h] = display_perf_df[h].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "-")
                 else:
                     display_perf_df[h] = display_perf_df[h].apply(lambda x: f"+{x:.2f}%" if x > 0 else (f"{x:.2f}%" if x < 0 else "0.00%"))
@@ -1180,7 +1180,7 @@ Be specific, data-driven, and actionable for a retail investor.
 
         color_code_js = JsCode("""
         function(params) {
-            if (params.value === undefined || params.value === null || params.colDef.field === "Volume") return null;
+            if (params.value === undefined || params.value === null || params.colDef.field === "Turnover") return null;
             let val = parseFloat(String(params.value).replace(/[+%,]/g, ''));
             if (val > 0) return { 'color': '#000000', 'backgroundColor': '#e6f4ea', 'fontWeight': 'bold' };
             if (val < 0) return { 'color': '#000000', 'backgroundColor': '#fce8e6', 'fontWeight': 'bold' };
@@ -1225,7 +1225,7 @@ Be specific, data-driven, and actionable for a retail investor.
     # ==========================================
     st.markdown("---")
     st.markdown("### 🔬 Bottom Fishing Scanner — Buy from Bottom Candidates")
-    st.caption("Stocks that are 8–15% above 52W Low, in uptrend, with high volume + strong fundamentals")
+    st.caption("Stocks that are 8–15% above 52W Low, in uptrend, with high turnover + strong fundamentals")
 
     bf_col1, bf_col2, bf_col3 = st.columns([2, 2, 2])
     with bf_col1:
