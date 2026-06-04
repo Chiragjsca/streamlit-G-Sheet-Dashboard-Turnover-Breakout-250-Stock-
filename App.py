@@ -29,6 +29,46 @@ else:
     ai_enabled = False
 
 # ==========================================
+# 💡 AI PROMPT LIBRARY — edit freely, use {sym} for stock name
+# ==========================================
+SUGGESTED_AI_PROMPTS = [
+    "Based on the current data provided, give me a quick summary of the technical performance and trend for {sym}. Also give me all other details and calculate if this company is profitable or not.",
+    "Analyze the 52-week high and low data for {sym}. Is the stock closer to its peak or bottom? What does this imply for entry or exit timing? Identify the ideal buy zone.",
+    "Examine the 50 DMA, 100 DMA, and 200 DMA data for {sym}. Is the stock in a bullish crossover, bearish zone, or consolidation phase? Explain the trend strength and momentum.",
+    "Using the volume data for {sym}, identify if there is unusual volume activity. Does the current volume indicate institutional buying, selling, or accumulation? What does it signal?",
+    "Evaluate the full fundamentals of {sym} — EPS, RONW%, D/E ratio, Net Profit (Cr.), Book Value, and Market Cap. Is this company financially healthy and worth long-term investment?",
+    "What is the risk profile of {sym} based on its Pledged %, Promoters Holding %, Institutional Holding %, and Debt-to-Equity ratio? Should a retail investor be cautious right now?",
+    "Compare {sym}'s current CMP vs its 200 DMA. Is the stock overbought, oversold, or fairly valued based on the Difference from 200 DMA metric? What is the ideal risk-reward entry zone?",
+    "Give a complete Buy / Hold / Sell recommendation for {sym} using all available technical and fundamental data. Include specific price targets, support levels, and a stop-loss level.",
+    "Based on the CAR Rating and Output signal for {sym}, what is the system suggesting? Does the historical price action and current data support this signal? How reliable is it?",
+    "Summarize {sym}'s sector positioning, market cap, enterprise value, book value, and promoter holding. How does this stock compare to typical benchmarks in its sector in the Indian market?",
+]
+
+# ==========================================
+# 🌲 PINE SCRIPT CUSTOM RULES LIBRARY — edit freely
+# 3 rules per Strategy Focus (12 total)
+# ==========================================
+PINE_CUSTOM_RULES = """Strategy 1 — Volume Breakout with Dynamic Stop Loss
+  Rule 1: Enter long when today's volume > 2× the 20-day average volume AND price closes above the prior day's high; set stop loss at 1.5× ATR below entry price.
+  Rule 2: Add a false breakout filter — price must hold above the breakout level for 2 consecutive candles before confirming entry; trail stop at the lowest low of the last 3 bars.
+  Rule 3: Set profit target at 2:1 risk-reward ratio; plot a volume histogram overlay to identify surge bars visually; include an alert condition for live breakout detection.
+
+Strategy 2 — Moving Average Crossover (50/100/200 DMA)
+  Rule 4: Buy when 50 DMA crosses above 100 DMA with price trading above the 200 DMA; exit when 50 DMA crosses back below 100 DMA; use 200 DMA as the hard stop-loss floor.
+  Rule 5: Add RSI confirmation — only enter when RSI is between 50–70 at the crossover candle; plot all three DMAs on the chart with distinct colours for visual clarity.
+  Rule 6: Allow a re-entry if 50 DMA pulls back to 100 DMA without breaking below 200 DMA; set stop loss 2% below the 50 DMA value at the time of entry.
+
+Strategy 3 — Trend Following with Trailing Stop
+  Rule 7: Enter long when price breaks a 20-day high with above-average volume and ADX > 25; apply a Chandelier Exit trailing stop set at 3× ATR from the highest close after entry.
+  Rule 8: Use 200 DMA direction as the trend filter — only take long trades when price is above 200 DMA; tighten trailing stop to 2× ATR once profit exceeds 10% from entry.
+  Rule 9: Add a re-entry condition: if stopped out but price remains above 200 DMA, re-enter on the next pullback to the 50 DMA; limit to a maximum of 2 re-entries per trend leg.
+
+Strategy 4 — Mean Reversion from 52W High/Low
+  Rule 10: Buy when price is within 15% of the 52-week low AND RSI < 35; set profit target at the 52-week midpoint; place hard stop loss 5% below the 52-week low level.
+  Rule 11: Exit/short signal when price is within 5% of the 52-week high with RSI > 70; use Bollinger Band upper band touch as secondary confirmation; target the middle Bollinger Band as exit.
+  Rule 12: Apply a volume reversal filter — only enter when the reversal candle's volume is ≥ 1.5× the 20-day average; plot the 52-week high and low as horizontal reference lines on the chart."""
+
+# ==========================================
 # 🛡️ HIDE STREAMLIT MENU & GITHUB ICON
 # ==========================================
 hide_streamlit_ui = """
@@ -405,8 +445,8 @@ if not raw_df.empty:
     if selected_symbol_col in filtered_df.columns:
         core_sequence.append(selected_symbol_col)
 
-    turnover_target = next((c for c in actual_cols if "turnover" in c.lower()), None)
-    if turnover_target and turnover_target not in core_sequence: core_sequence.append(turnover_target)
+    vol_target = next((c for c in actual_cols if "turnover" in c.lower()), None)
+    if vol_target and vol_target not in core_sequence: core_sequence.append(vol_target)
 
     close_target = next((c for c in actual_cols if "close price" in c.lower() or "prev" in c.lower()), None)
     if close_target and close_target not in core_sequence: core_sequence.append(close_target)
@@ -434,8 +474,17 @@ if not raw_df.empty:
     # ==========================================
     st.markdown("---")
     
-    col_size_1, col_size_2 = st.columns([2, 3])
-    with col_size_1:
+    # Generate export data silently before drawing the UI
+    export_df = clean_for_export(filtered_df)
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        safe_sheet_name = selected_sheet[:31].replace(":", "").replace("/", "")
+        export_df.to_excel(writer, index=False, sheet_name=safe_sheet_name)
+    
+    # 🔄 UPDATED LAYOUT: Top Row (Width Adjuster on Left, Excel Button on Right)
+    top_col1, top_col2 = st.columns([4, 1])
+    
+    with top_col1:
         sizing_mode = st.radio(
             "📏 Column Width Adjustment:", 
             ["Default", "✅ Fit to Row 1", "✅✅ Fit to Row 2"], 
@@ -443,26 +492,24 @@ if not raw_df.empty:
             help="Automatically adjust the column widths based on the text length of the selected row."
         )
 
-    col1, col2, col3 = st.columns([1, 1.5, 2.5])
-    with col1:
-        st.write(f"**Rows:** {filtered_df.shape[0]} | **Columns:** {len(actual_cols)}") 
-        
-    with col2:
-        export_df = clean_for_export(filtered_df)
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-            safe_sheet_name = selected_sheet[:31].replace(":", "").replace("/", "")
-            export_df.to_excel(writer, index=False, sheet_name=safe_sheet_name)
-        
+    with top_col2:
+        # Pushing the button down slightly so it aligns nicely with the radio buttons
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
         st.download_button(
             label="📥 Download as Excel",
             data=buffer.getvalue(),
             file_name=f"{selected_sheet}_Export_{datetime.now().strftime('%Y%m%d')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True
+            use_container_width=False 
         )
 
-    url_placeholder = col3.empty()
+    # Bottom Row: Row/Column Count (Left), Links Workspace (Right)
+    bot_col1, bot_col2 = st.columns([1, 4])
+    with bot_col1:
+        st.write(f"**Rows:** {filtered_df.shape[0]} | **Columns:** {len(actual_cols)}") 
+        
+    with bot_col2:
+        url_placeholder = st.empty()
 
     # ==========================================
     # 🎨 AG GRID INITIALIZATION WITH SELECTION ENGINE
@@ -598,7 +645,7 @@ if not raw_df.empty:
                 "📈 Chart & Trade Info (NSE Component)", "📋 History Data (EquityPandit)", 
                 "🎯 Bullish/Bearish Zone", "📁 Screener Documents",
                 "🪁 Zerodha Portal", "📊 MarketSmith India", "📉 TradingView Symbol Profile",
-                "🤖 AI Stock Analysis"
+                "🤖 AI Stock Analysis", "💻 AI Pine Script Builder"
             ])
 
             with ws_tabs[0]:
@@ -644,7 +691,6 @@ if not raw_df.empty:
                             try:
                                 clean_row_context = {k: v for k, v in sel_row.items() if not str(k).startswith('_')}
                                 
-                                # Updated to gemini-2.5-flash
                                 model = genai.GenerativeModel('gemini-2.5-flash')
                                 prompt = f"""
                                 You are a professional stock market analyst evaluating Indian NSE stocks.
@@ -663,6 +709,70 @@ if not raw_df.empty:
                                 
                             except Exception as e:
                                 st.error(f"There was an error communicating with the AI: {e}")
+
+                    # ── 10 Suggested Prompts (plain text list) ──────────────────
+                    st.markdown("---")
+                    st.markdown("**💡 Suggested Prompts** — copy any prompt below and paste it into the query box above:")
+                    prompt_lines = "\n".join(
+                        [f"{i+1}. {p.replace('{sym}', sym)}" for i, p in enumerate(SUGGESTED_AI_PROMPTS)]
+                    )
+                    st.text(prompt_lines)
+
+            # ==========================================
+            # 💻 AI PINE SCRIPT BUILDER
+            # ==========================================
+            with ws_tabs[8]:
+                st.markdown(f"### 💻 AI Pine Script Generator for **{sym}**")
+                
+                if not ai_enabled:
+                    st.warning("⚠️ Google Gemini API is not configured. Please add `GEMINI_API_KEY` to your Streamlit secrets to enable this feature.")
+                else:
+                    st.write("Generate a custom TradingView Pine Script v5 strategy tailored to this stock's current metrics.")
+                    
+                    strategy_focus = st.selectbox("Select Strategy Focus:", [
+                        "Volume Breakout with Dynamic Stop Loss",
+                        "Moving Average Crossover (50/100/200 DMA)",
+                        "Trend Following with Trailing Stop",
+                        "Mean Reversion from 52W High/Low"
+                    ])
+                    
+                    pine_query = st.text_area("Additional Custom Rules (Optional):", value=f"Include risk management parameters and plot signals on the chart.", height=60, key="pine_query")
+                    
+                    if st.button("⚙️ Generate TradingView Pine Script", use_container_width=True):
+                        with st.spinner(f"Writing Pine Script v5 code for {sym}..."):
+                            try:
+                                clean_row_context = {k: v for k, v in sel_row.items() if not str(k).startswith('_')}
+                                
+                                model = genai.GenerativeModel('gemini-2.5-flash')
+                                prompt = f"""
+                                You are an expert quantitative developer specializing in TradingView Pine Script v5.
+                                
+                                Write a complete, ready-to-copy Pine Script v5 strategy for the stock: {sym}.
+                                
+                                Strategy Focus: {strategy_focus}
+                                Custom Rules: {pine_query}
+                                
+                                Here is the live fundamental and technical data for {sym} to incorporate as baseline context or threshold values if relevant:
+                                {clean_row_context}
+                                
+                                Formatting Requirements:
+                                1. Start with `//@version=5` and `strategy("{sym} Custom Script", overlay=true)`
+                                2. Include clear comments explaining the logic.
+                                3. Provide ONLY the Pine Script code inside a markdown code block, no other conversational text.
+                                """
+                                
+                                response = model.generate_content(prompt)
+                                st.markdown("### 📋 Your Custom Strategy Code:")
+                                st.write("Copy the code below and paste it into the TradingView Pine Editor.")
+                                st.markdown(response.text)
+                                
+                            except Exception as e:
+                                st.error(f"There was an error communicating with the AI: {e}")
+
+                    # ── 12 Custom Rules (plain text, 3 per Strategy Focus) ───────
+                    st.markdown("---")
+                    st.markdown("**📋 Custom Rules Reference** — copy any rule and paste it into the Additional Custom Rules box above:")
+                    st.text(PINE_CUSTOM_RULES)
 
     # ==========================================
     # 🌍 NATIONAL ANALYTICS PORTAL WORKSPACE
@@ -699,7 +809,8 @@ if not raw_df.empty:
         "🔥 Most Active", "🚀 Volume Gainers", "🏆 Top Gainers/Losers", "⭐ 52W Boundaries", "📦 Stocks Traded", "⚖️ Advances/Declines",
         "🕒 Pre-Open Market", "⚡ Price Band Hitters", "🗺️ Index Ticker Heatmap", "🎫 IPO Tracker", "⚠️ Volume Shockers",
         "📂 Document Reports", "🖋️ TV Script Engine", "🔮 MunafaSutra Tickers", "🎯 Dhan Asset Registry", "💎 Weekly Activity Metrics",
-        "🔧 ScanX Core Screener", "🚦 ScanX Live Engine", "🎨 Screener Exploration", "📈 IPO Chittorgarh", "🏷️ IPO Watch Panel", "💓 NSE Pulse"
+        "🔧 ScanX Core Screener", "🚦 ScanX Live Engine", "🎨 Screener Exploration", "📈 IPO Chittorgarh", "🏷️ IPO Watch Panel", "💓 NSE Pulse",
+        "📊 Chartink Screeners", "📋 Chartink Dashboard", "🗾 Chartink Atlas", "📚 Mahesh Kaushik", "💰 EFTI Wealth"
     ])
 
     with mkt_tabs[0]:
@@ -768,6 +879,21 @@ if not raw_df.empty:
     with mkt_tabs[21]:
         st.markdown("[🌐 Open Matrix](https://nsepulse.streamlit.app/)")
         components.html('<iframe src="https://nsepulse.streamlit.app/" width="100%" height="500" style="border:none; background-color:white;"></iframe>', height=520)
+    with mkt_tabs[22]:
+        st.markdown("[🌐 Open Matrix](https://chartink.com/screeners)")
+        components.html('<iframe src="https://chartink.com/screeners" width="100%" height="500" style="border:none; background-color:white;"></iframe>', height=520)
+    with mkt_tabs[23]:
+        st.markdown("[🌐 Open Matrix](https://chartink.com/scan_dashboard)")
+        components.html('<iframe src="https://chartink.com/scan_dashboard" width="100%" height="500" style="border:none; background-color:white;"></iframe>', height=520)
+    with mkt_tabs[24]:
+        st.markdown("[🌐 Open Matrix](https://chartink.com/atlas)")
+        components.html('<iframe src="https://chartink.com/atlas" width="100%" height="500" style="border:none; background-color:white;"></iframe>', height=520)
+    with mkt_tabs[25]:
+        st.markdown("[🌐 Open Matrix](https://www.maheshkaushik.com/)")
+        components.html('<iframe src="https://www.maheshkaushik.com/" width="100%" height="500" style="border:none; background-color:white;"></iframe>', height=520)
+    with mkt_tabs[26]:
+        st.markdown("[🌐 Open Matrix](https://eftiwealth.com/)")
+        components.html('<iframe src="https://eftiwealth.com/" width="100%" height="500" style="border:none; background-color:white;"></iframe>', height=520)
 
     # ==========================================
     # 🏆 MULTI-HORIZON PERFORMANCE SUMMARY MATRIX
@@ -793,7 +919,7 @@ if not raw_df.empty:
 
     for h in horizons:
         if h == "Turnover":
-            if turnover_target: detected_metric_map[h] = turnover_target
+            if vol_target: detected_metric_map[h] = vol_target
             continue
             
         keywords = [h.lower(), h.lower().replace(" ", ""), h.lower().replace("s", "")]
