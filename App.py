@@ -89,7 +89,10 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    st.markdown("<h1 style='text-align: center; margin-top: 100px;'>🔐 Admin Login</h1>", unsafe_allow_html=True)
+    # Top hint
+    st.markdown("<p style='text-align: center; margin-top: 100px; color: Green; font-size: 18px;'>250-Volume Breakout Dashboard</p>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; margin-top: 0px; font-size: 20px;'>🔐 Admin Login</h1>", unsafe_allow_html=True)
+    
     col1, col2, col3 = st.columns([1, 1, 1])
     with col2:
         with st.form("login_form"):
@@ -100,7 +103,12 @@ if not st.session_state.logged_in:
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
-                    st.error("❌ Incorrect Password. Please try again.")
+                    st.error("Password इल्ले 😂 इल्ले, खम्मा घणी भाईसा, सॉरी। तुमसे सब कुछ हो पाएगा ! कैसे मिली 🤪 इस वेबसाइट छोड़ दो")
+    
+    # Your dynamic bottom hint
+    dynamic_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    st.markdown(f"<p style='text-align: center; color: gray; font-size: 14px; margin-top: 20px;'>Data refreshed: {dynamic_time}</p>", unsafe_allow_html=True)
+
     st.stop()
 
 # ==========================================
