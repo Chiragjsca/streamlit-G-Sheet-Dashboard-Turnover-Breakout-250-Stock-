@@ -104,32 +104,97 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ==========================================
-# 🌍 GLOBAL MARKET TICKER (TRADINGVIEW)
+# 🌍 GLOBAL MARKET TICKER (LIVE DATA GRID)
 # ==========================================
+import yfinance as yf
+import streamlit as st
+from datetime import datetime
+
 st.markdown("<p style='font-size:0.85rem; font-weight:bold; margin:0; padding:0;'>📊 Top 250 NSE Stock-Turnover Breakout Dashboard</p>", unsafe_allow_html=True)
 st.caption(f"Data refreshed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
-components.html("""
-<div class="tradingview-widget-container">
-  <div class="tradingview-widget-container__widget"></div>
-  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
-  {
-  "symbols": [
-    {"proName": "NSE:NIFTY", "title": "Nifty 50"},
-    {"proName": "NSE:BANKNIFTY", "title": "Bank Nifty"},
-    {"proName": "BSE:SENSEX", "title": "Sensex"},
-    {"proName": "NSE:CNXIT", "title": "Nifty IT"},
-    {"proName": "NSE:CNXAUTO", "title": "Nifty Auto"}
-  ],
-  "showSymbolLogo": true,
-  "isTransparent": true,
-  "displayMode": "adaptive",
-  "colorTheme": "dark",
-  "locale": "en"
-}
-  </script>
-</div>
-""", height=70)
+@st.cache_data(ttl=60)
+def get_live_index_data():
+    symbols = {
+        "NIFTY 50": "^NSEI",
+        "NIFTY NEXT 50": "^NN50",
+        "NIFTY MIDCAP 50": "^NSEMDCP50",
+        "NIFTY MIDCAP 100": "^CRSLMID",
+        "NIFTY MIDCAP 150": "UNSUPPORTED", 
+        "NIFTY SMLCAP 50": "UNSUPPORTED",
+        "NIFTY SMLCAP 100": "UNSUPPORTED",
+        "NIFTY SMLCAP 250": "UNSUPPORTED",
+        "NIFTY MIDSML 400": "UNSUPPORTED",
+        "NIFTY 100": "^CNX100",
+        "NIFTY 200": "^CNX200",
+        "NIFTY500 MULTI...": "UNSUPPORTED",
+        "NIFTY LARGEMID...": "UNSUPPORTED",
+        "NIFTY MID SELE...": "UNSUPPORTED",
+        "NIFTY TOTAL MK...": "UNSUPPORTED",
+        "NIFTY MICROCAP...": "UNSUPPORTED",
+        "NIFTY 500": "^CRSLDX",
+        "NIFTY FPI 150": "UNSUPPORTED",
+        "NIFTY500 LMS E...": "UNSUPPORTED",
+        "NIFTY MIDSMALL...": "UNSUPPORTED",
+        "NIFTY SMALLCAP...": "UNSUPPORTED"
+    }
+    
+    data_grid = {}
+    for name, ticker_code in symbols.items():
+        if ticker_code == "UNSUPPORTED":
+            data_grid[name] = {"price": "No Data", "change": 0.0}
+            continue
+            
+        try:
+            ticker = yf.Ticker(ticker_code)
+            hist = ticker.history(period="5d")
+            
+            if not hist.empty and len(hist) >= 2:
+                live_price = float(hist['Close'].iloc[-1])
+                prev_close = float(hist['Close'].iloc[-2])
+                pct_change = ((live_price - prev_close) / prev_close) * 100
+                data_grid[name] = {"price": f"{live_price:,.2f}", "change": pct_change}
+            else:
+                data_grid[name] = {"price": "Loading...", "change": 0.0}
+        except Exception:
+            data_grid[name] = {"price": "Error", "change": 0.0}
+            
+    return data_grid
+
+live_data = get_live_index_data()
+
+cards_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; font-family: system-ui, -apple-system, sans-serif;'>"
+
+# Keep track of how many cards we actually printed
+valid_cards_count = 0 
+
+for name, info in live_data.items():
+    
+    # 👇 NEW LOGIC: If the data is bad, skip this block completely!
+    if info["price"] in ["No Data", "Loading...", "Error"]:
+        continue
+        
+    valid_cards_count += 1
+    bg_color = "#66bb6a" if info["change"] >= 0 else "#ef5350"
+    change_sign = "+" if info["change"] >= 0 else ""
+    
+    cards_html += f"<div style='background-color: {bg_color}; color: white; padding: 12px 16px; border-radius: 8px; flex: 1 1 calc(16.66% - 10px); min-width: 140px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>"
+    cards_html += f"<div style='font-size: 11px; font-weight: 700; letter-spacing: 0.5px; opacity: 0.95; margin-bottom: 6px; text-transform: uppercase;'>{name}</div>"
+    cards_html += f"<div style='display: flex; justify-content: space-between; align-items: baseline;'>"
+    cards_html += f"<span style='font-size: 15px; font-weight: 700;'>{info['price']}</span>"
+    cards_html += f"<span style='font-size: 11px; font-weight: 600; background: rgba(255,255,255,0.2); padding: 1px 6px; border-radius: 4px;'>{change_sign}{info['change']:.2f}%</span>"
+    cards_html += f"</div></div>"
+
+cards_html += "</div>"
+
+with st.expander("📈 Click to view Live Market Indices", expanded=False):
+    # Failsafe: If Yahoo Finance is completely down and NO cards rendered, show a friendly message
+    if valid_cards_count == 0:
+        st.info("Market data is currently unavailable. Please check back later.")
+    else:
+        st.markdown(cards_html, unsafe_allow_html=True)
+
+st.write("---")
 
 # ==========================================
 # 🛠️ HELPER FUNCTIONS
