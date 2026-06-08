@@ -1,5 +1,5 @@
 
-# 📊 Top 250 NSE Stock-Volume Breakout Dashboard
+# 📊 Top 250 NSE Stock-Turnover Breakout Dashboard
 
 A professional, all‑in‑one dashboard for Indian stock market analysis.  
 It combines live data from Google Sheets, AI (Gemini/Groq), advanced filtering, watchlists, a **bottom‑fishing** score, a GTT order calculator, dozens of embedded market portals, and much more.
@@ -15,18 +15,18 @@ It combines live data from Google Sheets, AI (Gemini/Groq), advanced filtering, 
 - **📄 Google Sheets Integration** – 6 different sheets (`Top 250 Stocks`, `Final List`, `Diff @ 200 DMA`, etc.) with full colour preservation.
 - **🎨 Powerful Filtering** – Global search, colour filters, numeric sliders, DMA trend filters (e.g. 50 DMA > 200 DMA), date filters.
 - **🤖 AI Analysis** – Gemini or Groq (Llama 3.3) analyses any selected stock using live sheet data. Pre‑defined prompts, exportable history.
-- **💻 Pine Script Generator** – AI writes TradingView Pine Script v5 strategies (Volume Breakout, Moving Average Crossover, Trend Following, Mean Reversion).
-- **🔬 Bottom Fishing Score** – 0–100 score based on 8 criteria (proximity to 52W low, uptrend, volume, debt, profit, RONW, promoter holding, pledge). Grades: Strong Buy / Watchlist / Caution / Avoid.
+- **💻 Pine Script Generator** – AI writes TradingView Pine Script v5 strategies (Turnover Breakout, Moving Average Crossover, Trend Following, Mean Reversion).
+- **🔬 Bottom Fishing Score** – 0–100 score based on 8 criteria (proximity to 52W low, uptrend, Turnover, debt, profit, RONW, promoter holding, pledge). Grades: Strong Buy / Watchlist / Caution / Avoid.
 - **🎯 GTT Order Calculator** – Auto‑suggest Stop‑Loss (1×, 1.5×, 2× ATR), multiple targets (1R, 2R, 3R), position sizing, copy‑ready order summary.
 - **📝 Watchlist Manager** – Persistent watchlist stored in a Google Sheet. Add notes, download Excel, share via WhatsApp/Telegram.
-- **📅 Multi‑Horizon Performance Matrix** – Returns for 24 time horizons (1 day … 3 years) plus volume, coloured by performance.
+- **📅 Multi‑Horizon Performance Matrix** – Returns for 24 time horizons (1 day … 3 years) plus Turnover, coloured by performance.
 - **🧭 National Analytics Portal** – 27 embedded iframes (NSE official pages, Moneycontrol, Chartink, Screener, ScanX, IPO Watch, etc.) with “Open in Browser” fallback.
 - **📥 Full Excel Export** – Export filtered grids, watchlist, AI history, bottom‑fishing results.
 - **🖼️ Responsive Design** – Works on desktop and mobile (with external links for embedded iframes).
 
 --------------------------------------------------------------------------------------------------
 
-📊 Top 250 NSE Stock-Volume Breakout Dashboard – User Guide
+📊 Top 250 NSE Stock-Turnover Breakout Dashboard – User Guide
 This dashboard is a complete technical & fundamental analysis platform for the top 250 NSE stocks, plus a full-market scanner for all NSE/BSE equities. It combines live data from Google Sheets, AI analysis (Gemini/Groq), advanced filtering, watchlists, order calculators, bottom‑fishing scores, and dozens of embedded market portals.
 
 📈 2. Live Market Indices (Top Section)
@@ -81,7 +81,7 @@ Categorical filters – Industry, Sector, Output, Start GTT Order, etc.
 
 DMA trend filter – e.g. 50 DMA > 200 DMA.
 
-Numeric range sliders – Volume, CMP, Promoters %, Net Profit, EPS, RONW %, Market Cap, and also Diff from 200 DMA, From 52W Low %, From 52W High %.
+Numeric range sliders – Turnover, CMP, Promoters %, Net Profit, EPS, RONW %, Market Cap, and also Diff from 200 DMA, From 52W Low %, From 52W High %.
 
 Date filters – 52W high / low dates (Past 5 days … Past 1 year).
 
@@ -110,7 +110,7 @@ MarketSmith India	Institutional evaluation
 TradingView Profile	Asset profile from TradingView
 🤖 AI Stock Analysis	Ask AI (Gemini or Groq) about the stock using live sheet data. Also includes suggested prompts, WhatsApp/Telegram share, and Excel export of AI history.
 💻 AI Pine Script Builder	Generate a complete TradingView Pine Script v5 strategy based on the stock’s data. Choose from 4 strategy templates + add custom rules.
-🔬 Bottom Fishing Score	Scores the stock (0–100) for buying near the 52W low. Shows grade (Strong Buy / Watchlist / Caution / Avoid) and detailed reasoning (proximity to low, uptrend, volume, debt, profit, RONW, promoter holding, pledge).
+🔬 Bottom Fishing Score	Scores the stock (0–100) for buying near the 52W low. Shows grade (Strong Buy / Watchlist / Caution / Avoid) and detailed reasoning (proximity to low, uptrend, Turnover, debt, profit, RONW, promoter holding, pledge).
 🎯 GTT Order Calculator	Automatically suggests stop‑loss (tight/standard/wide), targets (1R, 2R, 3R), ATR, position sizing, and a copy‑ready GTT summary. Share via WhatsApp/Telegram.
 📊 Watchlist Manager	Add/remove the current stock to your personal watchlist (stored in a Google Sheet called Watchlist). Add a note, then view/manage the full watchlist, download as Excel, or share via messenger.
 🤖 7. AI Features (Gemini & Groq)
@@ -122,14 +122,14 @@ If both are present, you can choose between ⚡ Groq (llama 3.3 70B) and 🧠 Ge
 AI Stock Analysis
 Select a stock from the grid, go to the AI tab.
 
-Type your own question or pick from 10 suggested prompts (technical summary, entry zone, volume analysis, fundamentals, risk profile, buy/hold/sell recommendation, etc.).
+Type your own question or pick from 10 suggested prompts (technical summary, entry zone, Turnover analysis, fundamentals, risk profile, buy/hold/sell recommendation, etc.).
 
-The AI receives the full live row data (CMP, volumes, DMAs, fundamentals, etc.) and answers contextually.
+The AI receives the full live row data (CMP, Turnovers, DMAs, fundamentals, etc.) and answers contextually.
 
 Results are saved in st.session_state.ai_history and can be exported as a combined Excel file.
 
 AI Pine Script Builder
-Choose a strategy focus (volume breakout, moving average crossover, trend following, mean reversion).
+Choose a strategy focus (Turnover breakout, moving average crossover, trend following, mean reversion).
 
 Add custom rules (e.g., “use ATR trailing stop”).
 
@@ -171,7 +171,7 @@ Export results as Excel.
 Criteria	Max Points
 CMP within 8–15% of 52W low	30
 CMP > 200 DMA (uptrend)	15
-High volume (≥ 10M)	10
+High Turnover (≥ 10M)	10
 Low / zero debt (D/E ≤ 0.1)	10
 Positive net profit	10
 RONW ≥ 15%	10
@@ -181,7 +181,7 @@ Grades:
 🟢 STRONG BUY (≥75) | 🟡 WATCHLIST (55–74) | 🟠 CAUTION (35–54) | 🔴 AVOID (<35)
 
 📅 10. Multi‑Horizon Performance Summary Matrix
-Displays percentage returns over 24 time horizons (1 day, 2 days, … 3 years) plus Volume.
+Displays percentage returns over 24 time horizons (1 day, 2 days, … 3 years) plus Turnover.
 
 Ranks stocks based on any chosen horizon.
 
@@ -226,7 +226,7 @@ Categorical Filters – Industry, Sector, Output, etc.
 
 DMA Trend Filter – e.g. 50 DMA < 100 DMA < 200 DMA.
 
-Numeric sliders – Volume, CMP, Promoters %, Net Profit, EPS, RONW, etc.
+Numeric sliders – Turnover, CMP, Promoters %, Net Profit, EPS, RONW, etc.
 
 Date filters – 52W high / low date.
 
