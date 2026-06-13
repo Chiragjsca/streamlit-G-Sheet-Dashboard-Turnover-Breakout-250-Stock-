@@ -156,7 +156,7 @@ if "ai_history" not in st.session_state:
 
 if not st.session_state.logged_in:
     # Top hint
-    st.markdown("<p style='text-align: center; margin-top: 100px; color: Green; font-size: 18px;'>250-T Dashboard</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; margin-top: 100px; color: Green; font-size: 18px;'>250-V Dashboard</p>", unsafe_allow_html=True)
     st.markdown("<h1 style='text-align: center; margin-top: 0px; font-size: 20px;'>🔐 Admin Login</h1>", unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1, 1])
@@ -199,7 +199,7 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
-    
+
 # ==========================================
 # 🌍 GLOBAL MARKET TICKER (LIVE DATA GRID)
 # ==========================================
@@ -1319,7 +1319,7 @@ if not raw_df.empty:
     if selected_symbol_col in filtered_df.columns:
         core_sequence.append(selected_symbol_col)
 
-    vol_target = next((c for c in actual_cols if "turnover" in c.lower() or "volume" in c.lower()), None)
+    vol_target = next((c for c in actual_cols if "turnover" in c.lower()), None)
     if vol_target and vol_target not in core_sequence: core_sequence.append(vol_target)
 
     close_target = next((c for c in actual_cols if "close price" in c.lower() or "prev" in c.lower()), None)
@@ -1510,7 +1510,7 @@ if not raw_df.empty:
                 "🪁 Zerodha Portal", "📊 MarketSmith India", "📉 TradingView Symbol Profile",
                 "🤖 AI Stock Analysis", "💻 AI Pine Script Builder",
                 "🔬 Bottom Fishing Score",
-                "🎯 GTT Order Calculator", "📊 Watchlist Manager"
+                "🎯 GTT Order Calculator", "📊 Watchlist Manager", "📰 News Feed"
             ])
 
             with ws_tabs[0]:
@@ -2067,6 +2067,97 @@ Be specific, data-driven, and actionable for a retail investor.
                 else:
                     st.info("Your watchlist is empty. Add stocks using the button above!")
 
+            # ==========================================
+            # 📰 NEWS FEED TAB (NEW - ws_tabs[12])
+            # ==========================================
+            with ws_tabs[12]:
+                st.markdown(f"### 📰 Latest News & Alerts: **{sym}**")
+                
+                import urllib.request
+                import urllib.parse
+                import xml.etree.ElementTree as ET
+                import datetime
+                import email.utils
+
+                def get_time_ago_tab(pubdate_str):
+                    try:
+                        dt = email.utils.parsedate_to_datetime(pubdate_str)
+                        now = datetime.datetime.now(datetime.timezone.utc)
+                        diff = now - dt
+                        seconds = diff.total_seconds()
+                        
+                        # Highly specific time formatting for "Today's" priority
+                        if seconds < 0: return "Just now"
+                        if seconds < 60: return f"{int(seconds)} secs ago"
+                        if seconds < 3600: 
+                            mins = int(seconds / 60)
+                            return f"{mins} min{'s' if mins != 1 else ''} ago"
+                        if seconds < 86400: 
+                            hours = int(seconds / 3600)
+                            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+                        if seconds < 172800: return "Yesterday"
+                        
+                        days = int(seconds / 86400)
+                        return f"{days} days ago"
+                    except Exception:
+                        return "Recent"
+
+                @st.cache_data(ttl=600)
+                def fetch_single_stock_news(target_symbol, limit=10):
+                    try:
+                        # Broad search to ensure NO news is missed
+                        query = urllib.parse.quote(f'"{target_symbol}" stock share news NSE India')
+                        url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+                        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                        
+                        with urllib.request.urlopen(req) as response:
+                            xml_data = response.read()
+                        root = ET.fromstring(xml_data)
+                        
+                        alert_keywords = ["52 week high", "52-week high", "52 week low", "52-week low", "upper circuit", "lower circuit", "hits circuit", "locked in circuit"]
+                        n_list = []
+                        
+                        for item in root.findall('.//item'):
+                            title = item.find('title').text
+                            link = item.find('link').text
+                            pub_date = item.find('pubDate').text if item.find('pubDate') is not None else ""
+                            
+                            is_alert = any(k in title.lower() for k in alert_keywords)
+                            icon = "🚨 **[ALERT]** " if is_alert else ""
+                            
+                            try:
+                                dt = email.utils.parsedate_to_datetime(pub_date)
+                            except Exception:
+                                dt = datetime.datetime.min.replace(tzinfo=datetime.timezone.utc)
+                                
+                            n_list.append({
+                                "display_title": f"{icon}{title}", 
+                                "link": link, 
+                                "time_ago": get_time_ago_tab(pub_date),
+                                "timestamp": dt
+                            })
+                            
+                        # STRICT SORT: Forces 1 min, 5 min, 1 hr to ALWAYS be at the top
+                        n_list.sort(key=lambda x: x["timestamp"], reverse=True)
+                        return n_list[:limit]
+                    except Exception:
+                        return []
+
+                with st.spinner(f"Fetching today's latest news for {sym}..."):
+                    stock_news = fetch_single_stock_news(sym, limit=10) 
+                    
+                    if stock_news:
+                        for news in stock_news:
+                            # Visually highlight news that happened within the last 24 hours
+                            is_today = "min" in news['time_ago'] or "hour" in news['time_ago'] or "sec" in news['time_ago'] or "Just now" in news['time_ago']
+                            time_color = "#16e37f" if is_today else "gray"
+                            time_weight = "bold" if is_today else "normal"
+                            
+                            st.markdown(f"- <a href='{news['link']}' target='_blank' style='text-decoration: none; color: inherit;'>{news['display_title']}</a> <span style='color: {time_color}; font-weight: {time_weight}; font-size: 0.85em;'>— 🕒 {news['time_ago']}</span>", unsafe_allow_html=True)
+                            st.markdown("<hr style='margin: 0.5em 0; opacity: 0.2;'>", unsafe_allow_html=True)
+                    else:
+                        st.info(f"No recent news found for {sym}.")
+
     # ==========================================
     # 🌍 NATIONAL ANALYTICS PORTAL WORKSPACE
     # ==========================================
@@ -2419,8 +2510,10 @@ Be specific, data-driven, and actionable for a retail investor.
             cmp_v = clean_r.get(cmp_target, "") if cmp_target else ""
             sector_col = next((c for c in actual_cols if "sector" in c.lower()), None)
             sector_v = clean_r.get(sector_col, "") if sector_col else ""
+            nse_chart_url = f"https://charting.nseindia.com/?symbol={ticker}-EQ"
+            symbol_link = f'<a href="{nse_chart_url}" target="_blank" style="text-decoration:none; color:#000000; font-weight:bold;">{ticker}</a>'
             bf_results.append({
-                "Symbol": ticker,
+                "Symbol": symbol_link,
                 "Score": bf_s,
                 "Grade": bf_g,
                 "CMP": cmp_v,
@@ -2429,7 +2522,7 @@ Be specific, data-driven, and actionable for a retail investor.
             })
 
     if bf_search:
-        bf_results = [r for r in bf_results if bf_search.upper() in r["Symbol"].upper()]
+        bf_results = [r for r in bf_results if bf_search.upper() in re.sub(r'<[^>]*>', '', r["Symbol"]).upper()]
 
     bf_results.sort(key=lambda x: x["Score"], reverse=(bf_sort == "Score (High→Low)"))
 
@@ -2465,6 +2558,8 @@ Be specific, data-driven, and actionable for a retail investor.
             pinned = "left" if col == "Symbol" else None
             if col == "Score":
                 bf_gb.configure_column(col, width=dyn_w, pinned=pinned, cellStyle=bf_score_style)
+            elif col == "Symbol":
+                bf_gb.configure_column(col, width=dyn_w, pinned=pinned, cellRenderer=html_renderer)
             else:
                 bf_gb.configure_column(col, width=dyn_w, pinned=pinned)
 
@@ -2476,9 +2571,9 @@ Be specific, data-driven, and actionable for a retail investor.
         # Export BF Scanner results
         bf_buffer = io.BytesIO()
         with pd.ExcelWriter(bf_buffer, engine='openpyxl') as writer:
-            bf_scan_df.to_excel(writer, index=False, sheet_name="Bottom Fishing")
+            clean_for_export(bf_scan_df).to_excel(writer, index=False, sheet_name="Bottom Fishing")
         st.download_button("📥 Download BF Scanner Results", data=bf_buffer.getvalue(),
-            file_name=f"BottomFishing_{datetime.now().strftime('%Y%m%d')}.xlsx",
+            file_name=f"BottomFishing_{pd.Timestamp.now().strftime('%Y%m%d')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     else:
         st.info(f"No stocks found with BF Score ≥ {min_bf_score}. Try lowering the minimum score.")
@@ -2498,20 +2593,792 @@ Be specific, data-driven, and actionable for a retail investor.
         colA, colB = st.columns(2)
 
         with colA:
-            st.markdown("#### ⬆️ Top 10 (Daily)")
+            # Embedding the header directly in HTML with 0 top margin removes the gap completely
+            top_html = "<h4 style='margin-top:0px; margin-bottom:8px;'>⬆️ Top 10 (Daily)</h4>"
             for _, row in top_10.iterrows():
                 clean_s = str(row.get('_raw_symbol_', '')).strip()
                 v = row[pct_target]
+                
+                # Extract CMP and mathematically calculate the absolute Rupee change
+                cmp_val = row.get(cmp_target, "") if cmp_target else ""
+                try:
+                    price_float = float(str(cmp_val).replace(',', '').strip())
+                    pct_float = float(v)
+                    
+                    # Calculate old price to find the exact rupee difference
+                    prev_price = price_float / (1 + (pct_float / 100))
+                    abs_change = price_float - prev_price
+                    
+                    # Formatting strings (adding a plus sign for positive changes)
+                    change_str = f"<span style='font-size: 0.85em; opacity: 0.75; margin-right: 6px;'>+{abs_change:,.2f}</span>"
+                    price_str = f"₹{price_float:,.2f}"
+                except:
+                    price_str = f"₹{cmp_val}"
+                    change_str = ""
+                
                 url = f"https://charting.nseindia.com/?symbol={clean_s}-EQ"
-                st.markdown(f"<a href='{url}' target='_blank' style='text-decoration:none;'><div style='background-color:#16e37f; padding:8px; margin:4px; border-radius:5px; color:#000000; font-weight:bold;'>{clean_s}: +{v}%</div></a>", unsafe_allow_html=True)
+                
+                top_html += f"<a href='{url}' target='_blank' style='text-decoration:none;'><div style='background-color:#16e37f; padding:6px 12px; margin-bottom:4px; border-radius:5px; color:#000000; font-weight:bold; display:flex; justify-content:space-between;'><span>{clean_s}: +{v}%</span><span>{change_str}{price_str}</span></div></a>"
+                
+            st.markdown(top_html, unsafe_allow_html=True)
 
         with colB:
-            st.markdown("#### ⬇️ Bottom 10 (Daily)")
+            # Embedding the header directly in HTML with 0 top margin removes the gap completely
+            bot_html = "<h4 style='margin-top:0px; margin-bottom:8px;'>⬇️ Bottom 10 (Daily)</h4>"
             for _, row in bottom_10.iterrows():
                 clean_s = str(row.get('_raw_symbol_', '')).strip()
                 v = row[pct_target]
+                
+                # Extract CMP and mathematically calculate the absolute Rupee change
+                cmp_val = row.get(cmp_target, "") if cmp_target else ""
+                try:
+                    price_float = float(str(cmp_val).replace(',', '').strip())
+                    pct_float = float(v)
+                    
+                    # Calculate old price to find the exact rupee difference
+                    prev_price = price_float / (1 + (pct_float / 100))
+                    abs_change = price_float - prev_price
+                    
+                    # Formatting strings (negative values automatically get a minus sign)
+                    change_str = f"<span style='font-size: 0.85em; opacity: 0.75; margin-right: 6px;'>{abs_change:,.2f}</span>"
+                    price_str = f"₹{price_float:,.2f}"
+                except:
+                    price_str = f"₹{cmp_val}"
+                    change_str = ""
+                
                 url = f"https://charting.nseindia.com/?symbol={clean_s}-EQ"
-                st.markdown(f"<a href='{url}' target='_blank' style='text-decoration:none;'><div style='background-color:#f39991; padding:8px; margin:4px; border-radius:5px; color:#000000; font-weight:bold;'>{clean_s}: {v}%</div></a>", unsafe_allow_html=True)
+                
+                bot_html += f"<a href='{url}' target='_blank' style='text-decoration:none;'><div style='background-color:#f39991; padding:6px 12px; margin-bottom:4px; border-radius:5px; color:#000000; font-weight:bold; display:flex; justify-content:space-between;'><span>{clean_s}: {v}%</span><span>{change_str}{price_str}</span></div></a>"
+                
+            st.markdown(bot_html, unsafe_allow_html=True)
+
+    # ==========================================
+    # 📰 GLOBAL NEWS ENGINE (6 TABS)
+    # ==========================================
+    st.markdown("---")
+    st.markdown("### 📰 Global Market News, Alerts & Corporate Announcements")
+
+    import urllib.request
+    import urllib.parse
+    import xml.etree.ElementTree as ET
+    import pandas as pd
+
+    # Using robust Pandas datetime instead of native Python datetime to prevent timezone crashes
+    def get_time_ago_global(pubdate_str):
+        try:
+            dt = pd.to_datetime(pubdate_str, utc=True)
+            now = pd.Timestamp.now(tz='UTC')
+            seconds = (now - dt).total_seconds()
+            
+            if seconds < 0: return "Just now"
+            if seconds < 60: return f"{int(seconds)} secs ago"
+            if seconds < 3600: 
+                mins = int(seconds / 60)
+                return f"{mins} min{'s' if mins != 1 else ''} ago"
+            if seconds < 86400: 
+                hours = int(seconds / 3600)
+                return f"{hours} hour{'s' if hours != 1 else ''} ago"
+            if seconds < 172800: 
+                return f"Yesterday ({dt.strftime('%d %b %Y')})"
+            
+            days = int(seconds / 86400)
+            return f"{days} days ago ({dt.strftime('%d %b %Y')})"
+        except Exception:
+            return "Recent"
+
+    @st.cache_data(ttl=600)
+    def fetch_strict_alerts(symbol, limit=10):
+        try:
+            search_terms = f'"{symbol}" NSE AND ("52 week high" OR "52 week low" OR "upper circuit" OR "lower circuit")'
+            query = urllib.parse.quote(search_terms)
+            url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            
+            with urllib.request.urlopen(req) as response:
+                xml_data = response.read()
+            root = ET.fromstring(xml_data)
+            
+            alert_keywords = ["52 week high", "52-week high", "52 week low", "52-week low", "upper circuit", "lower circuit", "hits circuit", "locked in circuit"]
+            news_list = []
+            
+            for item in root.findall('.//item'):
+                title = item.find('title').text
+                if not any(keyword in title.lower() for keyword in alert_keywords):
+                    continue 
+                    
+                link = item.find('link').text
+                pub_date = item.find('pubDate').text if item.find('pubDate') is not None else ""
+                
+                try:
+                    dt = pd.to_datetime(pub_date, utc=True)
+                except Exception:
+                    dt = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=100) 
+                
+                now = pd.Timestamp.now(tz='UTC')
+                diff_days = (now - dt).total_seconds() / 86400
+                
+                if diff_days <= 15.0:
+                    time_ago_str = get_time_ago_global(pub_date)
+                    news_list.append({
+                        "display_title": f"🚨 **[ALERT]** {title}", 
+                        "link": link, 
+                        "time_ago": time_ago_str,
+                        "timestamp": dt,
+                        "title_raw": title 
+                    })
+            
+            news_list.sort(key=lambda x: x["timestamp"], reverse=True)
+            return news_list[:limit]
+        except Exception:
+            return []
+
+    @st.cache_data(ttl=600)
+    def fetch_all_stock_news_tab3(symbol, limit=5):
+        try:
+            query = urllib.parse.quote(f'"{symbol}" stock share news NSE India')
+            url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+            
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                xml_data = response.read()
+                
+            root = ET.fromstring(xml_data)
+            news_list = []
+            
+            alert_keywords = ["52 week high", "52-week high", "52 week low", "52-week low", "upper circuit", "lower circuit", "hits circuit", "locked in circuit", "upper limit", "lower limit"]
+            
+            for item in root.findall('.//item'):
+                title = item.find('title').text
+                link = item.find('link').text
+                pub_date = item.find('pubDate').text if item.find('pubDate') is not None else ""
+                
+                is_alert = any(keyword in title.lower() for keyword in alert_keywords)
+                icon = "🚨 **[ALERT]** " if is_alert else ""
+                display_title = f"{icon}{title}"
+                
+                try:
+                    dt = pd.to_datetime(pub_date, utc=True)
+                except Exception:
+                    dt = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=100)
+                
+                now = pd.Timestamp.now(tz='UTC')
+                diff_days = (now - dt).total_seconds() / 86400
+                
+                if diff_days <= 1.0:
+                    time_ago_str = get_time_ago_global(pub_date)
+                    news_list.append({
+                        "display_title": display_title, 
+                        "link": link, 
+                        "time_ago": time_ago_str,
+                        "timestamp": dt
+                    })
+            
+            news_list.sort(key=lambda x: x["timestamp"], reverse=True)
+            return news_list[:limit]
+            
+        except Exception:
+            return []
+
+    @st.cache_data(ttl=600)
+    def fetch_all_stock_news_tab4(symbol, limit=5):
+        try:
+            query = urllib.parse.quote(f'"{symbol}" stock share news NSE India')
+            url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+            
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                xml_data = response.read()
+                
+            root = ET.fromstring(xml_data)
+            news_list = []
+            
+            alert_keywords = ["52 week high", "52-week high", "52 week low", "52-week low", "upper circuit", "lower circuit", "hits circuit", "locked in circuit", "upper limit", "lower limit"]
+            
+            for item in root.findall('.//item'):
+                title = item.find('title').text
+                link = item.find('link').text
+                pub_date = item.find('pubDate').text if item.find('pubDate') is not None else ""
+                
+                is_alert = any(keyword in title.lower() for keyword in alert_keywords)
+                icon = "🚨 **[ALERT]** " if is_alert else ""
+                display_title = f"{icon}{title}"
+                
+                try:
+                    dt = pd.to_datetime(pub_date, utc=True)
+                except Exception:
+                    dt = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=100)
+                
+                time_ago_str = get_time_ago_global(pub_date)
+                
+                news_list.append({
+                    "display_title": display_title, 
+                    "link": link, 
+                    "time_ago": time_ago_str,
+                    "timestamp": dt
+                })
+            
+            news_list.sort(key=lambda x: x["timestamp"], reverse=True)
+            return news_list[:limit]
+            
+        except Exception:
+            return []
+
+    # NEW FUNCTION: Exclusively hunts for Screener-style Corporate Announcements & Filings
+    @st.cache_data(ttl=600)
+    def fetch_corporate_announcements(symbol, limit=6):
+        try:
+            # Strictly tuned query to capture LODR, Board Meetings, and Official Exchange Filings
+            search_terms = f'"{symbol}" AND ("Regulation 30" OR "LODR" OR "Board Meeting" OR "AGM" OR "Analyst Meet" OR "Financial Results" OR "Corporate Action" OR "Dividend")'
+            query = urllib.parse.quote(search_terms)
+            url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+            
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req) as response:
+                xml_data = response.read()
+                
+            root = ET.fromstring(xml_data)
+            news_list = []
+            
+            for item in root.findall('.//item'):
+                title = item.find('title').text
+                link = item.find('link').text
+                pub_date = item.find('pubDate').text if item.find('pubDate') is not None else ""
+                
+                try:
+                    dt = pd.to_datetime(pub_date, utc=True)
+                except Exception:
+                    dt = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=100)
+                
+                time_ago_str = get_time_ago_global(pub_date)
+                
+                news_list.append({
+                    "display_title": f"📢 {title}", # Unique megaphone icon for announcements
+                    "link": link, 
+                    "time_ago": time_ago_str,
+                    "timestamp": dt
+                })
+            
+            news_list.sort(key=lambda x: x["timestamp"], reverse=True)
+            return news_list[:limit]
+            
+        except Exception:
+            return []
+
+    # ── BSE scrip-code lookup (NSE symbol → BSE code) ──────────────────────
+    BSE_CODE_MAP = {
+        "RELIANCE": "500325", "TCS": "532540", "HDFCBANK": "500180",
+        "INFY": "500209", "ICICIBANK": "532174", "HINDUNILVR": "500696",
+        "SBIN": "500112", "BHARTIARTL": "532454", "BAJFINANCE": "500034",
+        "KOTAKBANK": "500247", "LT": "500510", "HCLTECH": "532281",
+        "AXISBANK": "532215", "ASIANPAINT": "500820", "MARUTI": "532500",
+        "SUNPHARMA": "524715", "TITAN": "500114", "ULTRACEMCO": "532538",
+        "ONGC": "500312", "NTPC": "532555", "POWERGRID": "532898",
+        "WIPRO": "507685", "NESTLEIND": "500790", "JSWSTEEL": "500228",
+        "TATASTEEL": "500470", "TATAMOTORS": "500570", "TECHM": "532755",
+        "GRASIM": "500300", "ADANIENT": "512599", "ADANIPORTS": "532921",
+        "COALINDIA": "533278", "DIVISLAB": "532488", "DRREDDY": "500124",
+        "EICHERMOT": "505200", "BAJAJFINSV": "532978", "BAJAJ-AUTO": "532977",
+        "CIPLA": "500087", "BRITANNIA": "500825", "HEROMOTOCO": "500182",
+        "APOLLOHOSP": "508869", "HINDALCO": "500440", "UPL": "512070",
+        "TATACONSUM": "500800", "SBILIFE": "540719", "HDFCLIFE": "540777",
+        "INDUSINDBK": "532187", "BPCL": "500547", "IOC": "530965",
+        "M&M": "500520", "PIDILITIND": "500331", "SIEMENS": "500550",
+        "HAVELLS": "517354", "VOLTAS": "500575", "AMBUJACEM": "500425",
+        "ACC": "500410", "SHREECEM": "500387", "RAMCOCEM": "500260",
+        "DALMIA": "502525", "JKCEMENT": "532644", "STAR": "540175",
+        "TVSMOTOR": "532343", "BOSCHLTD": "500530", "MUTHOOTFIN": "533398",
+        "CHOLAFIN": "500443", "BAJAJHLDNG": "500490", "TORNTPHARM": "500420",
+        "AUROPHARMA": "524208", "LUPIN": "500257", "BIOCON": "532523",
+        "ALKEM": "539523", "IPCALAB": "530827", "GLAXO": "500660",
+        "ABBOTINDIA": "500488", "PFIZER": "500680", "SANOFI": "500674",
+        "MCDOWELL-N": "532432", "ITC": "500875", "GODFRYPHLP": "500163",
+        "COLPAL": "500830", "DABUR": "500096", "MARICO": "531642",
+        "GODREJCP": "532424", "HINDPETRO": "500104", "CASTROLIND": "500870",
+        "INDIGO": "521737", "INTERGLOBE": "539448", "SPICEJET": "500285",
+        "IRCTC": "542830", "CONCOR": "531344", "ADANIGREEN": "541450",
+        "ADANITRANS": "539254", "TATAPOWER": "500400", "TORNTPOWER": "532779",
+        "CESC": "500084", "NHPC": "533098", "SJVN": "533206",
+        "PFC": "532810", "RECLTD": "532955", "IRFC": "543257",
+        "ZOMATO": "543320", "NYKAA": "543384", "PAYTM": "543396",
+        "POLICYBZR": "543390", "DELHIVERY": "543529", "CARTRADE": "543202",
+        "RVNL": "542649", "IRCON": "541956", "NBCC": "534309",
+        "HUDCO": "540530", "MMTC": "513377", "MTNL": "500108",
+        "BEL": "500049", "HAL": "541154", "COCHINSHIP": "526235",
+        "MAZAGON": "543237", "GRSE": "542351", "MIDHANI": "541195",
+        "BEML": "500048", "BHEL": "500103", "SAIL": "500113",
+        "NMDC": "526371", "MOIL": "533286", "NATIONALUM": "532234",
+        "HINDZINC": "500188", "VEDL": "500295", "GMRINFRA": "532754",
+        "NHAI": "500253", "IRB": "532947", "ASHOKLEY": "500477",
+        "ESCORTS": "500495", "FORCE": "517168", "SML": "513275",
+        "MOTHERSON": "517334", "MINDAIND": "532539", "ENDURANCE": "540350",
+        "BALKRISIND": "502355", "APOLLOTYRE": "500877", "MRF": "500290",
+        "CEATLTD": "500878", "JK TYRE": "530007", "INOXWIND": "539083",
+        "SUZLON": "532667", "RPOWER": "500390", "JPPOWER": "532627",
+        "FEDERALBNK": "500469", "IDFCFIRSTB": "539437", "BANDHANBNK": "541153",
+        "RBLBANK": "540065", "DCBBANK": "532772", "KTKBANK": "532209",
+        "SOUTHBANK": "532218", "CANBK": "532483", "BANKBARODA": "532134",
+        "UNIONBANK": "532477", "INDIANB": "532814", "UCOBANK": "532505",
+        "CENTRALBK": "532885", "MAHABANK": "532525", "J&KBANK": "532209",
+        "PNB": "532461", "IOB": "532388", "BANKINDIA": "532149",
+        "DENABANK": "532121", "SYNDIBANK": "532276", "VIJAYABANK": "532245",
+        "ORIENTBANK": "500315", "CORPBANK": "532179", "ANDHRABANK": "532418",
+        "ALLAHABAD": "532480", "ALBK": "532480", "MFSL": "542299",
+        "HDFCAMC": "541530", "NIPPONLIFE": "543171", "UTIAMC": "543238",
+        "ABCAPITAL": "540691", "ANGELONE": "543235", "ICICIGI": "540716",
+        "GICRE": "540755", "NIACL": "540769", "STAR": "540175",
+        "CROMPTON": "539876", "ORIENTELEC": "531637", "BLUESTAR": "500067",
+        "WHIRLPOOL": "500238", "VGUARD": "532953", "BAJAJEL": "500031",
+        "CERA": "532443", "HINDWARE": "509820", "HSIL": "509675",
+        "KAJARIACER": "500233", "SOMANYCER": "532622", "GRINDWELL": "506076",
+        "CARBORUNIV": "513375", "ASTRAL": "532830", "FINOLEX": "500940",
+        "SUPREMEIND": "509930", "BERGER": "509480", "KANSAINER": "500165",
+        "AKZOINDIA": "500710", "INDIACEM": "530005", "RAMCOIND": "500260",
+        "DALMIA": "502525", "HEIDELBERG": "500292", "PRISM": "500338",
+        "BIRLACORPN": "500335", "ORIENTCEM": "502420", "SAGCEM": "502090",
+        "STARCEMENT": "540575", "JKLAKSHMI": "500380", "NUVOCO": "543334",
+        "ZYDUSLIFE": "532321", "TORNTPHAR": "500420", "NATCOPHAR": "524816",
+        "GRANULES": "532482", "LAURUS": "540222", "STRIDES": "532531",
+        "AJANTPHAR": "532331", "CAPLIPOINT": "539266", "DIVI": "532488",
+        "SUNPHARMA": "524715", "GLAND": "543245", "SEQUENT": "543225",
+        "METROPOLIS": "542650", "DRLAL": "532259", "THYROCARE": "539871",
+        "KRSNAA": "543328", "VIJAYA": "532542", "MAXHEALTH": "543220",
+        "KIMS": "543308", "ASTER": "540975", "FORTIS": "532843",
+        "NHOSPIT": "532526", "APOLLOHOSP": "508869", "NARAYANA": "539551",
+        "YATHARTH": "544120", "RAINBOW": "543524", "SUVENPHAR": "530239",
+        "LAURUSLABS": "540222", "SOLARA": "541540", "SHILPAMED": "530879",
+        "PERSISTENT": "533179", "MINDTREE": "532819", "MPHASIS": "526299",
+        "HEXAWARE": "532861", "NIIT": "500304", "KPIT": "542651",
+        "LTTS": "540115", "COFORGE": "532541", "ZENSAR": "504067",
+        "RAMSYSTEMS": "532370", "MASTEK": "523704", "SASKEN": "532663",
+        "TATAELXSI": "500408", "CYIENT": "532175", "SONATSOFTW": "532221",
+        "TANLA": "532790", "LTIM": "540005", "INFY": "500209",
+        "ROUTE": "543228", "BSOFT": "526301", "NEWGEN": "540900",
+        "INTELLECT": "538835", "NUCLEUS": "531209", "NELCO": "504112",
+        "DELTACORP": "532840", "WONDERLA": "538268", "MAHINDCIE": "532756",
+        "STARHLTH": "543412", "NAUKRI": "532777", "JUSTDIAL": "535648",
+        "MATRIMONY": "539846", "MAKEMYTRIP": "513377", "IXIGO": "544229",
+        "RATEGAIN": "543417", "TEAMLEASE": "539658", "QUESS": "539978",
+        "SIS": "540673", "SECURKLOUD": "539963", "HAPPYFORGE": "543532",
+        "KALYANKJIL": "543278", "SENCO": "543456", "THANGAMAYL": "531509",
+        "TRIBHOVAND": "512415", "PC JEWELLER": "534809", "RAJESHEXPO": "531500",
+    }
+
+    @st.cache_data(ttl=600)
+    def fetch_bse_all_documents(bse_code, days_back=90):
+        """Fetch announcements, annual reports, concalls, PPT, credit ratings from BSE."""
+        result = {"announcements": [], "annual_reports": [], "credit_ratings": [], "concalls": [], "ppt": []}
+        try:
+            import datetime
+            to_date   = datetime.date.today()
+            from_date = to_date - datetime.timedelta(days=days_back)
+            str_from  = from_date.strftime("%Y%m%d")
+            str_to    = to_date.strftime("%Y%m%d")
+
+            # ── Announcements (Reg-30 / LODR) ────────────────────────────
+            ann_url = (
+                f"https://api.bseindia.com/BseIndiaAPI/api/AnnSubCategoryGetData/w"
+                f"?pageno=1&strCat=-1&strPrevDate={str_from}&strScrip={bse_code}"
+                f"&strSearch=P&strToDate={str_to}&strType=C&subcategory=-1"
+            )
+            headers = {
+                "User-Agent": "Mozilla/5.0",
+                "Referer": "https://www.bseindia.com/",
+                "Accept": "application/json",
+            }
+            req = urllib.request.Request(ann_url, headers=headers)
+            with urllib.request.urlopen(req, timeout=8) as r:
+                data = json.loads(r.read())
+            for row in (data.get("Table") or [])[:30]:
+                title = row.get("HEADLINE", "") or row.get("SUBCATNAME", "")
+                dt_str = row.get("NEWS_DT", "") or row.get("DT_TM", "")
+                newsid = row.get("NEWSID", "")
+                link = f"https://www.bseindia.com/xml-data/corpfiling/AttachLive/{newsid}.pdf" if newsid else ""
+                try:
+                    dt_disp = pd.to_datetime(dt_str).strftime("%d %b %Y")
+                except Exception:
+                    dt_disp = dt_str[:10]
+                subcat = (row.get("SUBCATNAME") or "").lower()
+                entry = {"title": title, "link": link, "date": dt_disp}
+                if any(k in subcat for k in ["annual report", "annual rep"]):
+                    result["annual_reports"].append(entry)
+                elif any(k in subcat for k in ["credit rat", "rating"]):
+                    result["credit_ratings"].append(entry)
+                elif any(k in subcat for k in ["concall", "con call", "earnings call", "analyst"]):
+                    result["concalls"].append(entry)
+                elif any(k in subcat for k in ["investor presentation", "presentation", "ppt"]):
+                    result["ppt"].append(entry)
+                else:
+                    result["announcements"].append(entry)
+        except Exception:
+            pass
+        return result
+
+try:
+        filtered_symbols_full = filtered_df['_raw_symbol_'].dropna().unique()
+        
+        if len(filtered_symbols_full) > 0:
+            news_tab1, news_tab2, news_tab3, news_tab4, news_tab5, news_tab6 = st.tabs([
+                "🚨 Latest Alerts Timeline", 
+                "🏢 Alerts by Stock",
+                "📰 Smart News Engine (1 Day)",
+                "📰 Smart News Engine (All News)",
+                "📢 Corporate Announcements", 
+                "📢 DOCUMENTS HUB" 
+            ])
+            
+            master_alerts_list = []
+            filtered_symbols_alerts = filtered_symbols_full[:30] 
+            
+            with st.spinner("Scanning Top 30 stocks for Circuit & 52-Week Breakouts (15 Days)..."):
+                for sym in filtered_symbols_alerts:
+                    clean_symbol = str(sym).strip()
+                    news_items = fetch_strict_alerts(clean_symbol, limit=15)
+                    for n in news_items:
+                        n["symbol"] = clean_symbol 
+                        master_alerts_list.append(n)
+
+            # Build sets for green-highlight logic
+            alerted_symbols     = {n["symbol"] for n in master_alerts_list}
+            fresh_alerted_syms  = {
+                n["symbol"] for n in master_alerts_list
+                if "min"  in n["time_ago"] or "hour" in n["time_ago"]
+                or "sec"  in n["time_ago"] or "Just now" in n["time_ago"]
+            }
+
+            def symbol_badge(sym):
+                """Return a coloured pill badge for a stock symbol."""
+                if sym in fresh_alerted_syms:
+                    # Bright green — alert from today
+                    bg, fg, border = "#16e37f", "#003300", "#0fbf62"
+                elif sym in alerted_symbols:
+                    # Deeper green — alert within 15 days
+                    bg, fg, border = "#1a7a45", "#ffffff", "#145e34"
+                else:
+                    # Neutral grey — in sheet but no alert
+                    bg, fg, border = "#444", "#ffffff", "#333"
+                return (
+                    f"<span style='background:{bg}; color:{fg}; padding:2px 9px; "
+                    f"border-radius:5px; font-weight:700; font-size:0.82em; "
+                    f"border:1px solid {border}; white-space:nowrap;'>"
+                    f"⚡ {sym}</span>"
+                )
+            
+            # ==========================================
+            # TAB 1: CONSOLIDATED ALERTS TIMELINE
+            # ==========================================
+            with news_tab1:
+                col_s1, col_s2, col_s3 = st.columns([2, 1, 1])
+                search_news = col_s1.text_input("🔍 Search Alerts:", placeholder="e.g. ICICIBANK, circuit...", key="global_news_search")
+                time_filter = col_s2.selectbox("⏳ Time Filter:", ["All (Up to 15 Days)", "Past 7 Days", "Today Only"], key="global_news_time")
+                sort_order = col_s3.radio("↕️ Sort By Time:", ["Newest First", "Oldest First"], horizontal=True, key="global_news_sort")
+                
+                display_news = master_alerts_list.copy()
+                
+                if search_news:
+                    sq = search_news.lower()
+                    display_news = [n for n in display_news if sq in n['symbol'].lower() or sq in n['title_raw'].lower()]
+                
+                if time_filter == "Today Only":
+                    display_news = [n for n in display_news if "min" in n['time_ago'] or "hour" in n['time_ago'] or "sec" in n['time_ago'] or "Just now" in n['time_ago']]
+                elif time_filter == "Past 7 Days":
+                    now_utc = pd.Timestamp.now(tz='UTC')
+                    display_news = [n for n in display_news if (now_utc - n['timestamp']).total_seconds() / 86400 <= 7.0]
+                
+                display_news.sort(key=lambda x: x["timestamp"], reverse=(sort_order == "Newest First"))
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                if display_news:
+                    for news in display_news:
+                        is_today = "min" in news['time_ago'] or "hour" in news['time_ago'] or "sec" in news['time_ago'] or "Just now" in news['time_ago']
+                        time_color  = "#16e37f" if is_today else "gray"
+                        time_weight = "bold"    if is_today else "normal"
+                        badge = symbol_badge(news['symbol'])
+                        st.markdown(
+                            f"- {badge}&nbsp; <a href='{news['link']}' target='_blank' "
+                            f"style='text-decoration: none; color: inherit;'>{news['display_title']}</a> "
+                            f"<span style='color: {time_color}; font-weight: {time_weight}; font-size: 0.85em;'>"
+                            f"— 🕒 {news['time_ago']}</span>",
+                            unsafe_allow_html=True
+                        )
+                        st.markdown("<hr style='margin: 0.4em 0; opacity: 0.15;'>", unsafe_allow_html=True)
+                else:
+                    st.info("No circuit or 52-week alerts match your search or filter criteria.")
+
+            # ==========================================
+            # TAB 2: ALERTS BY STOCK (WITH STRETCH BOX)
+            # ==========================================
+            with news_tab2:
+                news_cols = st.columns(2) 
+                idx_counter = 0
+                for clean_symbol in [str(s).strip() for s in filtered_symbols_alerts]:
+                    sym_news = [n for n in master_alerts_list if n['symbol'] == clean_symbol]
+                    sym_news.sort(key=lambda x: x["timestamp"], reverse=True) 
+                    
+                    if sym_news:
+                        with news_cols[idx_counter % 2]:
+                            # Badge colour in the expander label: green if fresh, teal if older
+                            exp_icon = "🟢" if clean_symbol in fresh_alerted_syms else "🟡"
+                            with st.expander(f"{exp_icon} {clean_symbol} Action Alerts (0 Sec to 15 Days)", expanded=True):
+                                top_3_news = sym_news[:3]
+                                remaining_news = sym_news[3:]
+                                
+                                for news in top_3_news:
+                                    is_today = "min" in news['time_ago'] or "hour" in news['time_ago'] or "sec" in news['time_ago'] or "Just now" in news['time_ago']
+                                    time_color = "#16e37f" if is_today else "gray"
+                                    time_weight = "bold" if is_today else "normal"
+                                    st.markdown(f"- <a href='{news['link']}' target='_blank' style='text-decoration: none; color: inherit;'>{news['display_title']}</a> <span style='color: {time_color}; font-weight: {time_weight}; font-size: 0.85em;'>— 🕒 {news['time_ago']}</span>", unsafe_allow_html=True)
+                                
+                                if remaining_news:
+                                    with st.expander(f"🔽 Show {len(remaining_news)} more older alerts", expanded=False):
+                                        for news in remaining_news:
+                                            is_today = "min" in news['time_ago'] or "hour" in news['time_ago'] or "sec" in news['time_ago'] or "Just now" in news['time_ago']
+                                            time_color = "#16e37f" if is_today else "gray"
+                                            time_weight = "bold" if is_today else "normal"
+                                            st.markdown(f"- <a href='{news['link']}' target='_blank' style='text-decoration: none; color: inherit;'>{news['display_title']}</a> <span style='color: {time_color}; font-weight: {time_weight}; font-size: 0.85em;'>— 🕒 {news['time_ago']}</span>", unsafe_allow_html=True)
+                        idx_counter += 1
+                        
+                if idx_counter == 0:
+                    st.info("No circuit breakouts or 52-week boundary alerts for the currently filtered stocks in the last 15 days.")
+
+            # ==========================================
+            # TAB 3: SMART NEWS ENGINE (1 DAY ONLY)
+            # ==========================================
+            with news_tab3:
+                st.markdown("### Latest News & Action Alerts (Past 24 Hours)")
+                news_cols_3 = st.columns(2) 
+                idx_counter_3 = 0
+                
+                for symbol in filtered_symbols_full[:10]:
+                    clean_symbol = str(symbol).strip()
+                    news_items = fetch_all_stock_news_tab3(clean_symbol, limit=5)
+                    
+                    if news_items:
+                        with news_cols_3[idx_counter_3 % 2]:
+                            with st.expander(f"📰 {clean_symbol} News Feed (0 Sec to 1 Day)", expanded=True):
+                                for news in news_items:
+                                    is_today = "min" in news['time_ago'] or "hour" in news['time_ago'] or "sec" in news['time_ago'] or "Just now" in news['time_ago']
+                                    time_color = "#16e37f" if is_today else "gray"
+                                    time_weight = "bold" if is_today else "normal"
+                                    st.markdown(f"- <a href='{news['link']}' target='_blank' style='text-decoration: none; color: inherit;'>{news['display_title']}</a> <span style='color: {time_color}; font-weight: {time_weight}; font-size: 0.85em;'>— 🕒 {news['time_ago']}</span>", unsafe_allow_html=True)
+                        idx_counter_3 += 1
+                
+                if idx_counter_3 == 0:
+                    st.info("No general news found for the currently filtered stocks in the last 24 hours.")
+
+            # ==========================================
+            # TAB 4: SMART NEWS ENGINE (ALL NEWS)
+            # ==========================================
+            with news_tab4:
+                st.markdown("### Latest News & Action Alerts (All Time)")
+                news_cols_4 = st.columns(2) 
+                idx_counter_4 = 0
+                
+                for symbol in filtered_symbols_full[:10]:
+                    clean_symbol = str(symbol).strip()
+                    news_items = fetch_all_stock_news_tab4(clean_symbol, limit=6)
+                    
+                    if news_items:
+                        with news_cols_4[idx_counter_4 % 2]:
+                            with st.expander(f"📰 {clean_symbol} News Feed (All News)", expanded=True):
+                                top_3_news4     = news_items[:3]
+                                remaining_news4 = news_items[3:]
+                                
+                                for news in top_3_news4:
+                                    is_today = "min" in news['time_ago'] or "hour" in news['time_ago'] or "sec" in news['time_ago'] or "Just now" in news['time_ago']
+                                    time_color = "#16e37f" if is_today else "gray"
+                                    time_weight = "bold" if is_today else "normal"
+                                    st.markdown(f"- <a href='{news['link']}' target='_blank' style='text-decoration: none; color: inherit;'>{news['display_title']}</a> <span style='color: {time_color}; font-weight: {time_weight}; font-size: 0.85em;'>— 🕒 {news['time_ago']}</span>", unsafe_allow_html=True)
+                                
+                                if remaining_news4:
+                                    with st.expander(f"🔽 Show {len(remaining_news4)} more articles", expanded=False):
+                                        for news in remaining_news4:
+                                            is_today = "min" in news['time_ago'] or "hour" in news['time_ago'] or "sec" in news['time_ago'] or "Just now" in news['time_ago']
+                                            time_color = "#16e37f" if is_today else "gray"
+                                            time_weight = "bold" if is_today else "normal"
+                                            st.markdown(f"- <a href='{news['link']}' target='_blank' style='text-decoration: none; color: inherit;'>{news['display_title']}</a> <span style='color: {time_color}; font-weight: {time_weight}; font-size: 0.85em;'>— 🕒 {news['time_ago']}</span>", unsafe_allow_html=True)
+                        idx_counter_4 += 1
+                
+                if idx_counter_4 == 0:
+                    st.info("No general news found for the currently filtered stocks.")
+
+            # ==========================================
+            # TAB 5: CORPORATE ANNOUNCEMENTS (NEW)
+            # ==========================================
+            with news_tab5:
+                st.markdown("### 📢 Official Exchange Filings & Corporate Announcements")
+                st.markdown("<span style='font-size: 0.9em; color: gray;'>Tracks Regulation 30, LODR, Board Meetings, AGMs, and Analyst Meets.</span>", unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                news_cols_5 = st.columns(2) 
+                idx_counter_5 = 0
+                
+                for symbol in filtered_symbols_full[:15]: # Scans top 15 stocks for filings
+                    clean_symbol = str(symbol).strip()
+                    announcement_items = fetch_corporate_announcements(clean_symbol, limit=7)
+                    
+                    if announcement_items:
+                        with news_cols_5[idx_counter_5 % 2]:
+                            with st.expander(f"📢 {clean_symbol} Filings & Announcements", expanded=True):
+                                top_3_ann     = announcement_items[:3]
+                                remaining_ann = announcement_items[3:]
+                                
+                                for announcement in top_3_ann:
+                                    is_today = "min" in announcement['time_ago'] or "hour" in announcement['time_ago'] or "sec" in announcement['time_ago'] or "Just now" in announcement['time_ago']
+                                    time_color = "#16e37f" if is_today else "gray"
+                                    time_weight = "bold" if is_today else "normal"
+                                    st.markdown(f"- <a href='{announcement['link']}' target='_blank' style='text-decoration: none; color: inherit;'>{announcement['display_title']}</a> <span style='color: {time_color}; font-weight: {time_weight}; font-size: 0.85em;'>— 🕒 {announcement['time_ago']}</span>", unsafe_allow_html=True)
+                                
+                                if remaining_ann:
+                                    with st.expander(f"🔽 Show {len(remaining_ann)} more filings", expanded=False):
+                                        for announcement in remaining_ann:
+                                            is_today = "min" in announcement['time_ago'] or "hour" in announcement['time_ago'] or "sec" in announcement['time_ago'] or "Just now" in announcement['time_ago']
+                                            time_color = "#16e37f" if is_today else "gray"
+                                            time_weight = "bold" if is_today else "normal"
+                                            st.markdown(f"- <a href='{announcement['link']}' target='_blank' style='text-decoration: none; color: inherit;'>{announcement['display_title']}</a> <span style='color: {time_color}; font-weight: {time_weight}; font-size: 0.85em;'>— 🕒 {announcement['time_ago']}</span>", unsafe_allow_html=True)
+                        idx_counter_5 += 1
+                
+                if idx_counter_5 == 0:
+                    st.info("No recent corporate filings or official announcements found for the filtered stocks.")
+                                    
+            # ==========================================
+            # TAB 6: DOCUMENTS HUB
+            # ==========================================
+            with news_tab6:
+                st.markdown("### 📄 Documents Hub — Announcements · Annual Reports · Credit Ratings · Concalls · PPT · REC")
+                st.markdown("<span style='font-size:0.88em; color:#888;'>Live BSE India filings (public API, no key needed). Annual Reports & Concalls also link to Screener.in.</span>", unsafe_allow_html=True)
+                st.markdown("<br>", unsafe_allow_html=True)
+
+                ctrl1, ctrl2, ctrl3 = st.columns([3, 1.2, 1.2])
+                with ctrl1:
+                    all_doc_syms = [str(s).strip() for s in filtered_symbols_full[:60]]
+                    selected_doc_stocks = st.multiselect("🔍 Stocks to view:", options=all_doc_syms, default=all_doc_syms[:4], key="doc_hub_stocks_v2")
+                with ctrl2:
+                    doc_days_label = st.selectbox("📅 Date range:", ["30 Days", "90 Days", "180 Days", "1 Year"], index=1, key="doc_days_v2")
+                with ctrl3:
+                    doc_ann_limit = st.selectbox("📋 Rows per section:", [3, 5, 8, 12], index=1, key="doc_limit_v2")
+
+                days_map = {"30 Days": 30, "90 Days": 90, "180 Days": 180, "1 Year": 365}
+                doc_days_back = days_map[doc_days_label]
+
+                if not selected_doc_stocks:
+                    st.info("Select at least one stock above to view its documents.")
+                else:
+                    for doc_sym in selected_doc_stocks:
+                        bse_code = BSE_CODE_MAP.get(doc_sym.upper(), "")
+
+                        with st.expander(f"📁  {doc_sym}   {'· BSE ' + bse_code if bse_code else '· BSE code not mapped — Screener links shown'}", expanded=True):
+                            # Quick-access button bar
+                            btn_html = "<div style='display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;'>"
+                            btn_links = [
+                                ("📢 BSE Announcements",
+                                 f"https://www.bseindia.com/corporates/Corp_Annoucement.html?expandable=0&scripcd={bse_code}" if bse_code else f"https://www.nseindia.com/companies-listing/corporate-filings-announcements?symbol={doc_sym}",
+                                 "#e8eaf6", "#3949ab"),
+                                ("📑 Annual Reports",   f"https://www.screener.in/company/{doc_sym}/", "#e8f5e9", "#2e7d32"),
+                                ("⭐ Credit Ratings",   f"https://www.screener.in/company/{doc_sym}/", "#fff8e1", "#f57f17"),
+                                ("🎙️ Concalls",         f"https://www.screener.in/company/{doc_sym}/", "#fce4ec", "#c62828"),
+                                ("📊 Investor PPT",
+                                 f"https://www.bseindia.com/corporates/Inv_Rel.aspx?scripcd={bse_code}" if bse_code else f"https://www.screener.in/company/{doc_sym}/",
+                                 "#f3e5f5", "#6a1b9a"),
+                                ("🏛️ NSE Filings",      f"https://www.nseindia.com/companies-listing/corporate-filings-announcements?symbol={doc_sym}", "#e0f7fa", "#00695c"),
+                                ("📈 Screener",         f"https://www.screener.in/company/{doc_sym}/", "#fffde7", "#f9a825"),
+                            ]
+                            for label, href, bg, fg in btn_links:
+                                btn_html += f"<a href='{href}' target='_blank' style='background:{bg}; color:{fg}; padding:5px 12px; border-radius:6px; font-size:0.78em; font-weight:600; text-decoration:none; white-space:nowrap;'>{label}</a>"
+                            btn_html += "</div>"
+                            st.markdown(btn_html, unsafe_allow_html=True)
+
+                            # Fetch live BSE data
+                            docs_data = {}
+                            if bse_code:
+                                with st.spinner(f"Fetching BSE filings for {doc_sym}…"):
+                                    docs_data = fetch_bse_all_documents(bse_code, days_back=doc_days_back)
+
+                            # 4-column Screener-style layout
+                            c_ann, c_ar, c_cr, c_cc = st.columns([3, 2, 2, 3])
+
+                            # ── Column 1: Announcements ──────────────────────────
+                            with c_ann:
+                                st.markdown("<p style='font-weight:700; font-size:0.9em; border-bottom:2px solid #5c6bc0; padding-bottom:4px; color:#5c6bc0;'>📢 Announcements</p>", unsafe_allow_html=True)
+                                ann_items = docs_data.get("announcements", [])
+                                if ann_items:
+                                    subtab_recent, subtab_all = st.tabs(["Recent", "All ↗"])
+                                    with subtab_recent:
+                                        for a in ann_items[:doc_ann_limit]:
+                                            title_short = (a["title"][:85] + "…") if len(a["title"]) > 85 else a["title"]
+                                            link_part = (f"<a href='{a['link']}' target='_blank' style='color:#5c6bc0; text-decoration:none;'>{title_short}</a>" if a["link"] else f"<span>{title_short}</span>")
+                                            st.markdown(f"<div style='font-size:0.82em; margin-bottom:6px; border-left:3px solid #c5cae9; padding-left:6px;'>{link_part}<br><span style='color:#aaa; font-size:0.85em;'>{a['date']}</span></div>", unsafe_allow_html=True)
+                                    with subtab_all:
+                                        full_url = (f"https://www.bseindia.com/corporates/Corp_Annoucement.html?expandable=0&scripcd={bse_code}" if bse_code else f"https://www.nseindia.com/companies-listing/corporate-filings-announcements?symbol={doc_sym}")
+                                        st.markdown(f"<a href='{full_url}' target='_blank' style='color:#5c6bc0; font-size:0.85em;'>🔗 Open full announcements page →</a>", unsafe_allow_html=True)
+                                else:
+                                    bse_url = (f"https://www.bseindia.com/corporates/Corp_Annoucement.html?expandable=0&scripcd={bse_code}" if bse_code else f"https://www.nseindia.com/companies-listing/corporate-filings-announcements?symbol={doc_sym}")
+                                    st.markdown(f"<a href='{bse_url}' target='_blank' style='color:#5c6bc0; font-size:0.83em;'>🔗 View on {'BSE' if bse_code else 'NSE'} →</a>", unsafe_allow_html=True)
+                                    st.caption("No announcements in selected date range.")
+
+                            # ── Column 2: Annual Reports ─────────────────────────
+                            with c_ar:
+                                st.markdown("<p style='font-weight:700; font-size:0.9em; border-bottom:2px solid #43a047; padding-bottom:4px; color:#43a047;'>📑 Annual Reports</p>", unsafe_allow_html=True)
+                                ar_items = docs_data.get("annual_reports", [])
+                                if ar_items:
+                                    for ar in ar_items[:6]:
+                                        yr = ar["date"][:4] if ar["date"] else "Report"
+                                        link_part = (f"<a href='{ar['link']}' target='_blank' style='color:#43a047; text-decoration:none;'>📄 Annual Report {yr}</a>" if ar["link"] else f"<span>📄 Annual Report {yr}</span>")
+                                        st.markdown(f"<div style='font-size:0.82em; margin-bottom:5px;'>{link_part}</div>", unsafe_allow_html=True)
+                                else:
+                                    if bse_code:
+                                        st.markdown(f"<a href='https://www.bseindia.com/AnnualReports.html?scripcd={bse_code}' target='_blank' style='color:#43a047; font-size:0.83em;'>📑 BSE Annual Reports →</a>", unsafe_allow_html=True)
+                                    st.markdown(f"<a href='https://www.screener.in/company/{doc_sym}/' target='_blank' style='color:#43a047; font-size:0.83em;'>📑 View on Screener →</a>", unsafe_allow_html=True)
+                                    st.caption("Not found in selected range — try 1 Year.")
+
+                            # ── Column 3: Credit Ratings ─────────────────────────
+                            with c_cr:
+                                st.markdown("<p style='font-weight:700; font-size:0.9em; border-bottom:2px solid #f57f17; padding-bottom:4px; color:#f57f17;'>⭐ Credit Ratings</p>", unsafe_allow_html=True)
+                                cr_items = docs_data.get("credit_ratings", [])
+                                if cr_items:
+                                    for cr in cr_items[:4]:
+                                        title_short = (cr["title"][:70] + "…") if len(cr["title"]) > 70 else cr["title"]
+                                        link_part = (f"<a href='{cr['link']}' target='_blank' style='color:#f57f17; text-decoration:none;'>{title_short}</a>" if cr["link"] else f"<span>{title_short}</span>")
+                                        st.markdown(f"<div style='font-size:0.82em; margin-bottom:5px; border-left:3px solid #ffe0b2; padding-left:6px;'>{link_part}<br><span style='color:#aaa; font-size:0.85em;'>{cr['date']}</span></div>", unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"<a href='https://www.screener.in/company/{doc_sym}/' target='_blank' style='color:#f57f17; font-size:0.83em;'>⭐ Ratings on Screener →</a>", unsafe_allow_html=True)
+                                    st.markdown("<div style='font-size:0.78em; margin-top:8px; color:#888;'><a href='https://www.careratings.com' target='_blank' style='color:#888;'>CARE</a> · <a href='https://www.icra.in' target='_blank' style='color:#888;'>ICRA</a> · <a href='https://www.crisil.com' target='_blank' style='color:#888;'>CRISIL</a> · <a href='https://www.infomerics.com' target='_blank' style='color:#888;'>Infomerics</a></div>", unsafe_allow_html=True)
+                                    st.caption("Not found via BSE — check links above.")
+
+                            # ── Column 4: Concalls + PPT + REC ───────────────────
+                            with c_cc:
+                                st.markdown("<p style='font-weight:700; font-size:0.9em; border-bottom:2px solid #e53935; padding-bottom:4px; color:#e53935;'>🎙️ Concalls &amp; Investor Docs</p>", unsafe_allow_html=True)
+                                concall_items = docs_data.get("concalls", [])
+                                ppt_items = docs_data.get("ppt", [])
+                                combined = ppt_items + concall_items
+                                if combined:
+                                    for item in combined[:doc_ann_limit]:
+                                        is_ppt = item in ppt_items
+                                        icon = "📊" if is_ppt else "🎙️"
+                                        title_short = (item["title"][:70] + "…") if len(item["title"]) > 70 else item["title"]
+                                        link_part = (f"<a href='{item['link']}' target='_blank' style='color:#e53935; text-decoration:none;'>{icon} {title_short}</a>" if item["link"] else f"<span>{icon} {title_short}</span>")
+                                        st.markdown(f"<div style='font-size:0.82em; margin-bottom:5px; border-left:3px solid #ffcdd2; padding-left:6px;'>{link_part}<br><span style='color:#aaa; font-size:0.85em;'>{item['date']}</span></div>", unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"<a href='https://www.screener.in/company/{doc_sym}/' target='_blank' style='color:#e53935; font-size:0.83em;'>🎙️ Concalls on Screener →</a>", unsafe_allow_html=True)
+                                    st.caption("No concalls/PPT in selected date range.")
+
+                                st.markdown("<br>", unsafe_allow_html=True)
+                                badges_html = "<div style='display:flex; gap:6px; flex-wrap:wrap;'>"
+                                badges = [
+                                    ("📝 Transcript", f"https://www.screener.in/company/{doc_sym}/", "#e8eaf6", "#3949ab"),
+                                    ("🤖 AI Summary",  f"https://www.screener.in/company/{doc_sym}/", "#e8f5e9", "#2e7d32"),
+                                    ("📊 PPT",         f"https://www.bseindia.com/corporates/Inv_Rel.aspx?scripcd={bse_code}" if bse_code else f"https://www.screener.in/company/{doc_sym}/", "#f3e5f5", "#6a1b9a"),
+                                    ("▶️ REC",          f"https://www.youtube.com/results?search_query={doc_sym}+concall+earnings", "#ffebee", "#b71c1c"),
+                                ]
+                                for label, href, bg, fg in badges:
+                                    badges_html += f"<a href='{href}' target='_blank' style='background:{bg}; color:{fg}; padding:3px 10px; border-radius:4px; font-size:0.76em; font-weight:600; text-decoration:none;'>{label}</a>"
+                                badges_html += "</div>"
+                                st.markdown(badges_html, unsafe_allow_html=True)
+
+        else:
+            st.info("No stocks currently filtered to check.")
+            
+except Exception as e:
+    st.error(f"⚠️ Could not load the News Engine. Error details: {e}")
 
 else:
     st.warning("No data loaded. Check sheet sharing and secrets.")
