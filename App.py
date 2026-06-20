@@ -713,7 +713,7 @@ def get_ranked_sheet_data():
     sym_col = next((c for c in actual_cols if c.lower() in ["nse code", "symbol", "ticker", "stock symbol", "id", "stock"]), None)
     cmp_col = next((c for c in actual_cols if "cmp" in c.lower()), None)
     pct_col = next((c for c in actual_cols if "price %" in c.lower() or "change" in c.lower()), None)
-    vol_col = next((c for c in actual_cols if "Turnover" in c.lower()), None)
+    vol_col = next((c for c in actual_cols if "volume" in c.lower()), None)
     
     # Look for specific Value and Turnover columns
     value_col = next((c for c in actual_cols if "value" in c.lower() and "face" not in c.lower() and "enterprise" not in c.lower()), None)
@@ -728,7 +728,7 @@ def get_ranked_sheet_data():
     
     rank_df['CMP'] = pd.to_numeric(df[cmp_col].astype(str).str.replace(r'[%,]', '', regex=True), errors='coerce') if cmp_col else 0.0
     rank_df['Pct_Change'] = pd.to_numeric(df[pct_col].astype(str).str.replace(r'[%,]', '', regex=True), errors='coerce') if pct_col else 0.0
-    rank_df['Turnover'] = pd.to_numeric(df[vol_col].astype(str).str.replace(r'[%,]', '', regex=True), errors='coerce') if turnover_col else 0.0
+    rank_df['Volume'] = pd.to_numeric(df[vol_col].astype(str).str.replace(r'[%,]', '', regex=True), errors='coerce') if vol_col else 0.0
 
     # Handle Value and Turnover (Use exact columns if they exist, otherwise calculate CMP * Volume)
     fallback_calc = rank_df['CMP'] * rank_df['Volume']
