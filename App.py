@@ -719,6 +719,10 @@ def get_ranked_sheet_data():
     value_col = next((c for c in actual_cols if "value" in c.lower() and "face" not in c.lower() and "enterprise" not in c.lower()), None)
     turnover_col = next((c for c in actual_cols if "turnover" in c.lower()), None)
     
+    # This sheet has no dedicated Volume column — use Turnover as the proxy
+    if not vol_col:
+        vol_col = turnover_col
+    
     if not sym_col:
         return pd.DataFrame()
         
@@ -766,7 +770,7 @@ def build_ranking_cards_html(dataframe, metric_label="change"):
         # Decide what the pill displays based on the metric_label
         if metric_label == "volume":
             vol = row.get('Volume', 0)
-            pill_text = f"Vol: {vol/1000000:.1f}M" if vol >= 1000000 else f"Vol: {vol:,.0f}"
+            pill_text = f"T.O: ₹{vol/10000000:,.1f}Cr" if vol >= 10000000 else f"T.O: ₹{vol:,.0f}"
             
         elif metric_label == "value":
             val = row.get('Value', 0)
@@ -780,7 +784,7 @@ def build_ranking_cards_html(dataframe, metric_label="change"):
             # Custom dual-metric pill for "Most Active by Volume & Value"
             vol = row.get('Volume', 0)
             val = row.get('Value', 0)
-            v_str = f"{vol/1000000:.1f}M" if vol >= 1000000 else f"{vol/1000:.1f}k"
+            v_str = f"₹{vol/10000000:,.1f}Cr" if vol >= 10000000 else f"₹{vol:,.0f}"
             val_str = f"₹{val/10000000:,.1f}Cr" if val >= 10000000 else f"₹{val:,.0f}"
             pill_text = f"📦 {v_str} | 💰 {val_str}"
             
