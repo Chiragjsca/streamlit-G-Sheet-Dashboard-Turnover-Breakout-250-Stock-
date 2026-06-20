@@ -71,7 +71,7 @@ SUGGESTED_AI_PROMPTS = [
     "Based on the current data provided, give me a quick summary of the technical performance and trend for {sym}. Also give me all other details and calculate if this company is profitable or not.",
     "Analyze the 52-week high and low data for {sym}. Is the stock closer to its peak or bottom? What does this imply for entry or exit timing? Identify the ideal buy zone.",
     "Examine the 50 DMA, 100 DMA, and 200 DMA data for {sym}. Is the stock in a bullish crossover, bearish zone, or consolidation phase? Explain the trend strength and momentum.",
-    "Using the volume data for {sym}, identify if there is unusual volume activity. Does the current volume indicate institutional buying, selling, or accumulation? What does it signal?",
+    "Using the Turnover data for {sym}, identify if there is unusual Turnover activity. Does the current Turnover indicate institutional buying, selling, or accumulation? What does it signal?",
     "Evaluate the full fundamentals of {sym} — EPS, RONW%, D/E ratio, Net Profit (Cr.), Book Value, and Market Cap. Is this company financially healthy and worth long-term investment?",
     "What is the risk profile of {sym} based on its Pledged %, Promoters Holding %, Institutional Holding %, and Debt-to-Equity ratio? Should a retail investor be cautious right now?",
     "Compare {sym}'s current CMP vs its 200 DMA. Is the stock overbought, oversold, or fairly valued based on the Difference from 200 DMA metric? What is the ideal risk-reward entry zone?",
@@ -83,10 +83,10 @@ SUGGESTED_AI_PROMPTS = [
 # ==========================================
 # 🌲 PINE SCRIPT CUSTOM RULES LIBRARY
 # ==========================================
-PINE_CUSTOM_RULES = """Strategy 1 — Volume Breakout with Dynamic Stop Loss
-  Rule 1: Enter long when today's volume > 2× the 20-day average volume AND price closes above the prior day's high; set stop loss at 1.5× ATR below entry price.
+PINE_CUSTOM_RULES = """Strategy 1 — Turnover Breakout with Dynamic Stop Loss
+  Rule 1: Enter long when today's volume / Turnover > 2× the 20-day average volume / Turnover AND price closes above the prior day's high; set stop loss at 1.5× ATR below entry price.
   Rule 2: Add a false breakout filter — price must hold above the breakout level for 2 consecutive candles before confirming entry; trail stop at the lowest low of the last 3 bars.
-  Rule 3: Set profit target at 2:1 risk-reward ratio; plot a volume histogram overlay to identify surge bars visually; include an alert condition for live breakout detection.
+  Rule 3: Set profit target at 2:1 risk-reward ratio; plot a volume / Turnover histogram overlay to identify surge bars visually; include an alert condition for live breakout detection.
 
 Strategy 2 — Moving Average Crossover (50/100/200 DMA)
   Rule 4: Buy when 50 DMA crosses above 100 DMA with price trading above the 200 DMA; exit when 50 DMA crosses back below 100 DMA; use 200 DMA as the hard stop-loss floor.
@@ -94,14 +94,87 @@ Strategy 2 — Moving Average Crossover (50/100/200 DMA)
   Rule 6: Allow a re-entry if 50 DMA pulls back to 100 DMA without breaking below 200 DMA; set stop loss 2% below the 50 DMA value at the time of entry.
 
 Strategy 3 — Trend Following with Trailing Stop
-  Rule 7: Enter long when price breaks a 20-day high with above-average volume and ADX > 25; apply a Chandelier Exit trailing stop set at 3× ATR from the highest close after entry.
+  Rule 7: Enter long when price breaks a 20-day high with above-average volume / Turnover and ADX > 25; apply a Chandelier Exit trailing stop set at 3× ATR from the highest close after entry.
   Rule 8: Use 200 DMA direction as the trend filter — only take long trades when price is above 200 DMA; tighten trailing stop to 2× ATR once profit exceeds 10% from entry.
   Rule 9: Add a re-entry condition: if stopped out but price remains above 200 DMA, re-enter on the next pullback to the 50 DMA; limit to a maximum of 2 re-entries per trend leg.
 
 Strategy 4 — Mean Reversion from 52W High/Low
   Rule 10: Buy when price is within 15% of the 52-week low AND RSI < 35; set profit target at the 52-week midpoint; place hard stop loss 5% below the 52-week low level.
   Rule 11: Exit/short signal when price is within 5% of the 52-week high with RSI > 70; use Bollinger Band upper band touch as secondary confirmation; target the middle Bollinger Band as exit.
-  Rule 12: Apply a volume reversal filter — only enter when the reversal candle's volume is ≥ 1.5× the 20-day average; plot the 52-week high and low as horizontal reference lines on the chart."""
+  Rule 12: Apply a volume / Turnover reversal filter — only enter when the reversal candle's volume / Turnover is ≥ 1.5× the 20-day average; plot the 52-week high and low as horizontal reference lines on the chart."""
+
+# ==========================================
+# 📜 TRADING RULES LIBRARY  (shown in the "Rules" tab under
+#     Global Market News, Alerts & Corporate Announcements)
+#     Edit this string anytime — it renders as Markdown.
+# ==========================================
+TRADING_RULES_LIBRARY = """
+### 💡 Core Rules
+- **Sheet Convention:** Always use **NSE Code** instead of *Symbol* in the Google Sheet — this keeps NSE chart links working correctly.
+- **No Compromise:** Follow the Rules. Never compromise on Rules — Rules are better than any single Buy/Sell decision.
+- **Timing Edge:** Take advantage of time — buy when a stock is at its lower end (near 52W Low) and sell at a higher price when momentum kicks in (e.g. an Upper Circuit move).
+
+---
+
+### 🟢 Rule 1 — Near 52 Week High
+CMP / Close Price is highlighted **Green** when it is near the 52-Week High (within ~8%).
+
+### 🟠 Rule 2 — Near 52 Week Low (Buy Zone)
+CMP / Close Price is highlighted **Orange** when it is near the 52-Week Low (within ~8%) — **this is the type of stock to look at buying.**
+
+**52W Low / High Date column — color meaning:**
+| Signal | Meaning |
+|---|---|
+| 🟢 Green in *52 Week Low Date* | Stock touched its 52-Week Low within the **last 18 days** |
+| 🟢 Green in *52 Week High Date* | Stock touched its 52-Week High within the **last 18 days** |
+| Plain in *52 Week Low Date* | Stock touched its 52-Week Low within the **last 30 days** |
+| Plain in *52 Week High Date* | Stock touched its 52-Week High within the **last 30 days** |
+| Plain in *52 Week Low Date* | Stock touched its 52-Week Low **about 1 year ago** |
+| Plain in *52 Week High Date* | Stock touched its 52-Week High **about 1 year ago** |
+
+### 🔵 Rule 3 — Diff @ 200 DMA Strategy
+Only buy **52-Week Low** stocks, ranked by the **Difference from 200 DMA** column on the **Diff @ 200 DMA** tab — biggest fall first.
+
+**Path:**
+1. Open the **Diff @ 200 DMA** tab (Main sheet).
+2. Refer to the **Difference from 200 DMA** column.
+3. Sort results **−40% → −30% → −20% → −10%** (most negative first).
+
+**Mind Map:**
+```
+Rule 3 → Buy Only 52-Week Low Stocks
+│
+├── Main Sheet → Open Tab "Diff @ 200 DMA"
+├── Check Column → "Difference from 200 DMA"
+├── Sort Logic → Biggest Fall First (-40% → -30% → -20% → -10%)
+├── Meaning → Stock is trading below its 200 DMA
+├── Priority → More negative % = higher priority
+├── Selection Criteria
+│     ├── Only 52-Week Low stocks
+│     ├── Negative Difference from 200 DMA
+│     └── Deep-discount stocks preferred
+└── Final Action → Analyze & buy quality stocks
+```
+
+---
+
+### 🔗 Useful NSE Reference Links
+- **All Reports (Bhavcopy / Market Activity):** Bhavcopy (PR)(zip), Market Activity Report (csv), Full Bhavcopy & security delivery data, MCAP, PD, PR, SME → https://www.nseindia.com/all-reports/
+- **Securities Available for Trading** (ETF, Close-Ended MF Schemes, SME) → https://www.nseindia.com/static/market-data/securities-available-for-trading
+- **52-Week Low — Equity Market** → https://www.nseindia.com/market-data/52-week-low-equity-market#capital_market_link
+
+---
+
+### 🛑 Risk Management — No Compromise
+- **Stop Loss (Max 1–2%), no compromise.** બીજો chance મળશે કમાવાનો — પૈસા 10% ઓછા થયા તો 15% કમાવા પડશે.
+- **Risk-Reward Ratio:** max 5 trades, max 10% loss — never lose all your money in a single trade.
+- **Target / Profit Booking:** Max 10–20%.
+- Don't trade emotionally — the share market is a mind game.
+- Know everything related to a share before moving ahead.
+- Stay calm, serious, and stick to the decision you've made.
+- **Clear Vision, no compromise:** Focus → Stop Loss → Risk-Reward Ratio → Target/Profit → 52-Week Low Buy.
+- **Priority order:** IPO → F&O → 52-Week Low Shares.
+"""
 
 import streamlit as st
 
@@ -153,6 +226,11 @@ if "watchlist" not in st.session_state:
 if "ai_history" not in st.session_state:
     # list of dicts: {symbol, model, query, result, timestamp}
     st.session_state.ai_history = []
+
+# ── Token used to force-remount the main AgGrid so its OWN internal column
+#    filters/sort (set via the in-grid filter icons) get wiped on "Clear All Filters" ──
+if "grid_reset_token" not in st.session_state:
+    st.session_state.grid_reset_token = 0
 
 if not st.session_state.logged_in:
     # Top hint
@@ -390,7 +468,10 @@ def process_hyperlinks(df, symbol_col):
             elif "chartlink" in c_lower: url, label = f"https://chartink.com/stocks-new?load-snapshot=exponential-moving-average-simple-moving-average-simple-moving-average-moving-average-convergence-divergence-chart-snapshot-175&symbol={sym}", f"CL {sym}" if not c_lower.endswith("1") else "🔗 Link"
             elif "market smith" in c_lower: url, label = f"https://marketsmithindia.com/mstool/eval/{sym}/evaluation.jsp", f"ms {sym}" if not c_lower.endswith("1") else "🔗 Link"
             elif "official nse" in c_lower: url, label = f"https://www.nseindia.com/get-quotes/equity?symbol={sym}", f"nse📰 {sym}" if not c_lower.endswith("1") else "🔗 Link"
-            elif "nse" in c_lower: url, label = f"https://charting.nseindia.com/?symbol={sym}-EQ", f"nse {sym}" if not c_lower.endswith("1") else "🔗 Link"
+            elif "nse" in c_lower or col == symbol_col:
+                # Works whether this identifier column is named "NSE Code", "Symbol", "Ticker", etc.
+                # Label shows the plain stock name only (no "nse" prefix) to save column space.
+                url, label = f"https://charting.nseindia.com/?symbol={sym}-EQ", (sym if not c_lower.endswith("1") else "🔗 Link")
 
             if url: df_proc.at[idx, col] = f'<a href="{url}" target="_blank" style="text-decoration:none; color:#000000;">{label}</a>'
 
@@ -632,7 +713,7 @@ def get_ranked_sheet_data():
     sym_col = next((c for c in actual_cols if c.lower() in ["nse code", "symbol", "ticker", "stock symbol", "id", "stock"]), None)
     cmp_col = next((c for c in actual_cols if "cmp" in c.lower()), None)
     pct_col = next((c for c in actual_cols if "price %" in c.lower() or "change" in c.lower()), None)
-    vol_col = next((c for c in actual_cols if "volume" in c.lower()), None)
+    vol_col = next((c for c in actual_cols if "Turnover" in c.lower()), None)
     
     # Look for specific Value and Turnover columns
     value_col = next((c for c in actual_cols if "value" in c.lower() and "face" not in c.lower() and "enterprise" not in c.lower()), None)
@@ -647,7 +728,7 @@ def get_ranked_sheet_data():
     
     rank_df['CMP'] = pd.to_numeric(df[cmp_col].astype(str).str.replace(r'[%,]', '', regex=True), errors='coerce') if cmp_col else 0.0
     rank_df['Pct_Change'] = pd.to_numeric(df[pct_col].astype(str).str.replace(r'[%,]', '', regex=True), errors='coerce') if pct_col else 0.0
-    rank_df['Volume'] = pd.to_numeric(df[vol_col].astype(str).str.replace(r'[%,]', '', regex=True), errors='coerce') if vol_col else 0.0
+    rank_df['Turnover'] = pd.to_numeric(df[vol_col].astype(str).str.replace(r'[%,]', '', regex=True), errors='coerce') if turnover_col else 0.0
 
     # Handle Value and Turnover (Use exact columns if they exist, otherwise calculate CMP * Volume)
     fallback_calc = rank_df['CMP'] * rank_df['Volume']
@@ -840,17 +921,17 @@ def compute_bottom_fishing_score(row, actual_cols):
                 reasons.append(f"❌ CMP {diff_pct:.1f}% below 200 DMA (downtrend)")
 
     # 3. Turnover/Activity (max 10 pts)
-    vol = get_num(["turnover", "volume"])
-    if vol and vol > 0:
-        if vol >= 10_000_000:
+    turnover = get_num(["turnover"])
+    if turnover and turnover > 0:
+        if turnover >= 10_000_000:
             score += 10
-            reasons.append(f"✅ High turnover: {vol:,.0f}")
-        elif vol >= 1_000_000:
+            reasons.append(f"✅ High Turnover: {turnover:,.0f}")
+        elif turnover >= 1_000_000:
             score += 6
-            reasons.append(f"🟡 Moderate turnover: {vol:,.0f}")
+            reasons.append(f"🟡 Moderate Turnover: {turnover:,.0f}")
         else:
             score += 2
-            reasons.append(f"⚠️ Low turnover: {vol:,.0f}")
+            reasons.append(f"⚠️ Low Turnover: {turnover:,.0f}")
 
     # 4. Zero or Low Debt (max 10 pts)
     de = get_num(["d/e ratio", "debt", "d/e"])
@@ -919,6 +1000,11 @@ def compute_bottom_fishing_score(row, actual_cols):
     sales = get_num(["net sales", "net sale"])
     if sales and sales > 0:
         reasons.append(f"📊 Net Sales: ₹{sales:.1f} Cr")
+
+    # 10. % Delivery (max 0 pts — qualitative flag)
+    delivery_pct = get_num(["delivery"])
+    if delivery_pct is not None:
+        reasons.append(f"📦 % Delivery: {delivery_pct:.1f}%")
 
     # Grade
     if score >= 75:
@@ -1110,7 +1196,12 @@ def ai_results_to_excel(history: list) -> bytes:
 # ==========================================
 if st.sidebar.button("🧹 Clear All Filters", use_container_width=True):
     for key in list(st.session_state.keys()):
-        if key.startswith("filter_") or key == "search_query": del st.session_state[key]
+        if key.startswith("filter_") or key in ("search_query", "main_matrix_search", "perf_matrix_search", "bf_search"):
+            del st.session_state[key]
+    # Force the AgGrid component to remount so any in-grid column filters/sort set
+    # via the grid's own filter icons are wiped too (a static AgGrid key keeps that
+    # state across reruns, which is why filters used to appear "stuck").
+    st.session_state.grid_reset_token += 1
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -1119,7 +1210,7 @@ search_query = st.sidebar.text_input("Search by Symbol, Name, etc...", key="sear
 
 st.sidebar.markdown("---")
 st.sidebar.header("📑 Select a Tab")
-sheet_names = ["Top 250 Stocks", "Final List", "Final List 2", "Diff @ 200 DMA", "+%", "-%"]
+sheet_names = ["Top 250 Stocks", "NSE Fundamentals", "Final List", "Final List 2", "Diff @ 200 DMA", "+%", "-%"]
 selected_sheet = st.sidebar.selectbox("Choose sheet", sheet_names, key="filter_sheet")
 
 # ---------- Main Execution ----------
@@ -1319,8 +1410,8 @@ if not raw_df.empty:
     if selected_symbol_col in filtered_df.columns:
         core_sequence.append(selected_symbol_col)
 
-    vol_target = next((c for c in actual_cols if "turnover" in c.lower()), None)
-    if vol_target and vol_target not in core_sequence: core_sequence.append(vol_target)
+    turnover_target = next((c for c in actual_cols if "Turnover" in c.lower()), None)
+    if turnover_target and turnover_target not in core_sequence: core_sequence.append(turnover_target)
 
     close_target = next((c for c in actual_cols if "close price" in c.lower() or "prev" in c.lower()), None)
     if close_target and close_target not in core_sequence: core_sequence.append(close_target)
@@ -1337,6 +1428,8 @@ if not raw_df.empty:
     low_target = next((c for c in actual_cols if "52" in c.lower() and "low" in c.lower() and "date" not in c.lower() and "%" not in c.lower()), None)
     if low_target and low_target not in core_sequence: core_sequence.append(low_target)
 
+    deliv_target = next((c for c in actual_cols if "delivery" in c.lower()), None)
+
     all_other_fields = [c for c in filtered_df.columns if c not in core_sequence and not c.startswith("_bg_") and not c.startswith("_txt_") and c != "_raw_symbol_"]
     hidden_meta_attributes = [c for c in filtered_df.columns if c.startswith("_bg_") or c.startswith("_txt_") or c == "_raw_symbol_"]
 
@@ -1348,13 +1441,7 @@ if not raw_df.empty:
     # ==========================================
     st.markdown("---")
 
-    export_df = clean_for_export(filtered_df)
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        safe_sheet_name = selected_sheet[:31].replace(":", "").replace("/", "")
-        export_df.to_excel(writer, index=False, sheet_name=safe_sheet_name)
-
-    top_col1, top_col2 = st.columns([4, 1])
+    top_col1, top_col2, top_col3 = st.columns([3, 1, 2.2])
 
     with top_col1:
         sizing_mode = st.radio(
@@ -1363,6 +1450,22 @@ if not raw_df.empty:
             horizontal=True,
             help="Automatically adjust the column widths based on the text length of the selected row."
         )
+
+    with top_col3:
+        st.markdown("<div style='margin-top: 2px; font-size:0.9rem;'>🔍 Filter stocks inside this matrix...</div>", unsafe_allow_html=True)
+        matrix_search_query = st.text_input(
+            "Search symbol:", placeholder="Type symbol name...",
+            key="main_matrix_search", label_visibility="collapsed"
+        )
+
+    if matrix_search_query:
+        filtered_df = filtered_df[filtered_df['_raw_symbol_'].astype(str).str.contains(matrix_search_query, case=False, na=False)]
+
+    export_df = clean_for_export(filtered_df)
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        safe_sheet_name = selected_sheet[:31].replace(":", "").replace("/", "")
+        export_df.to_excel(writer, index=False, sheet_name=safe_sheet_name)
 
     with top_col2:
         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
@@ -1463,7 +1566,7 @@ if not raw_df.empty:
         if is_first_visible_column: is_first_visible_column = False
 
         c_low = col.lower()
-        if any(k in c_low for k in ["trading view", "history data", "screener", "zerodha", "chartlink", "market smith", "official nse", "nse"]):
+        if col == selected_symbol_col or any(k in c_low for k in ["trading view", "history data", "screener", "zerodha", "chartlink", "market smith", "official nse", "nse"]):
             gb.configure_column(col, width=width, minWidth=min_width, sortable=True, filter=True, resizable=True,
                 editable=False, pinned=pinned_value, cellRenderer=html_renderer, cellStyle=exact_mirror_style)
         else:
@@ -1476,15 +1579,19 @@ if not raw_df.empty:
     grid_response = AgGrid(
         filtered_df, gridOptions=grid_options, theme="streamlit", update_mode=GridUpdateMode.SELECTION_CHANGED,
         allow_unsafe_jscode=True, fit_columns_on_grid_load=False, enable_enterprise_modules=False, height=400, width='100%',
-        key="primary_stock_table_grid"
+        key=f"primary_stock_table_grid_{st.session_state.grid_reset_token}"
     )
 
     # ==========================================
     # 🎯 SELECTION WORKSPACE (LINKS + EMBED PANELS)
     # ==========================================
     selected_rows = grid_response.get("selected_rows", [])
-    if selected_rows is not None and len(selected_rows) > 0:
-        sel_row = selected_rows.iloc[0] if isinstance(selected_rows, pd.DataFrame) else selected_rows[0]
+    if (selected_rows is not None and len(selected_rows) > 0) or len(filtered_df) > 0:
+        if selected_rows is not None and len(selected_rows) > 0:
+            sel_row = selected_rows.iloc[0] if isinstance(selected_rows, pd.DataFrame) else selected_rows[0]
+        else:
+            # No stock selected yet — default the workspace panel to the first stock in the table
+            sel_row = filtered_df.iloc[0]
         sym = str(sel_row.get("_raw_symbol_", "")).strip()
 
         if sym:
@@ -1670,7 +1777,7 @@ Please provide a clear, concise, and professional response.
                     st.write("Generate a custom TradingView Pine Script v5 strategy tailored to this stock's current metrics.")
 
                     strategy_focus = st.selectbox("Select Strategy Focus:", [
-                        "Volume Breakout with Dynamic Stop Loss",
+                        "Turnover Breakout with Dynamic Stop Loss",
                         "Moving Average Crossover (50/100/200 DMA)",
                         "Trend Following with Trailing Stop",
                         "Mean Reversion from 52W High/Low"
@@ -1756,7 +1863,7 @@ Formatting Requirements:
 |---|----------|-----------|-------------|
 | 1 | **52W Low Proximity** | 30 | CMP is 8–15% above 52W Low (ideal entry zone) |
 | 2 | **Uptrend (200 DMA)** | 15 | CMP above 200 DMA = confirmed uptrend |
-| 3 | **Volume Activity** | 10 | High trading volume = institutional interest |
+| 3 | **Turnover Activity** | 10 | High trading Turnover = institutional interest |
 | 4 | **Low/Zero Debt** | 10 | D/E ratio ≤ 0.1 is ideal (no loan burden) |
 | 5 | **Net Profitability** | 10 | Positive net profit confirms fundamental health |
 | 6 | **RONW %** | 10 | Return on Net Worth ≥ 15% = strong business |
@@ -1789,7 +1896,7 @@ Scoring Breakdown: {chr(10).join(bf_reasons)}
 Please provide a comprehensive bottom-fishing analysis covering:
 1. Is this stock in or near the 52-week low zone? What does this mean?
 2. Is the stock entering an uptrend? Evidence from DMA data.
-3. Volume analysis — is there accumulation visible?
+3. Turnover analysis — is there accumulation visible?
 4. Fundamental health — debt, profitability, revenue growth signals.
 5. Bull run potential — sector tailwinds, promoter activity, institutional interest.
 6. Specific entry price zone recommendation with stop loss and target.
@@ -2194,7 +2301,8 @@ Be specific, data-driven, and actionable for a retail investor.
         "🕒 Pre-Open Market", "⚡ Price Band Hitters", "🗺️ Index Ticker Heatmap", "🎫 IPO Tracker", "⚠️ Volume Shockers",
         "📂 Document Reports", "🖋️ TV Script Engine", "🔮 MunafaSutra Tickers", "🎯 Dhan Asset Registry", "💎 Weekly Activity Metrics",
         "🔧 ScanX Core Screener", "🚦 ScanX Live Engine", "🎨 Screener Exploration", "📈 IPO Chittorgarh", "🏷️ IPO Watch Panel", "💓 NSE Pulse",
-        "📊 Chartink Screeners", "📋 Chartink Dashboard", "🗾 Chartink Atlas", "📚 Mahesh Kaushik", "💰 EFTI Wealth"
+        "📊 Chartink Screeners", "📋 Chartink Dashboard", "🗾 Chartink Atlas", "📚 Mahesh Kaushik", "💰 EFTI Wealth",
+        "✅ Securities Available", "🏛️ Corporate Filings", "📉 52W Low Market"
     ])
 
     # Reusable helper to render a styled "Open in Browser" button above each portal iframe
@@ -2317,6 +2425,18 @@ Be specific, data-driven, and actionable for a retail investor.
         _u = "https://eftiwealth.com/"
         st.markdown(_portal_btn(_u), unsafe_allow_html=True)
         components.html(f'<iframe src="{_u}" width="100%" height="500" style="border:none; background-color:white;"></iframe>', height=520)
+    with mkt_tabs[27]:
+        _u = "https://www.nseindia.com/static/market-data/securities-available-for-trading"
+        st.markdown(_portal_btn(_u), unsafe_allow_html=True)
+        components.html(f'<iframe src="{_u}" width="100%" height="500" style="border:none;"></iframe>', height=520)
+    with mkt_tabs[28]:
+        _u = "https://www.nseindia.com/companies-listing/corporate-filings-announcements"
+        st.markdown(_portal_btn(_u), unsafe_allow_html=True)
+        components.html(f'<iframe src="{_u}" width="100%" height="500" style="border:none;"></iframe>', height=520)
+    with mkt_tabs[29]:
+        _u = "https://www.nseindia.com/market-data/52-week-low-equity-market"
+        st.markdown(_portal_btn(_u), unsafe_allow_html=True)
+        components.html(f'<iframe src="{_u}" width="100%" height="500" style="border:none;"></iframe>', height=520)
 
     # ==========================================
     # 🏆 MULTI-HORIZON PERFORMANCE SUMMARY MATRIX
@@ -2352,7 +2472,7 @@ Be specific, data-driven, and actionable for a retail investor.
 
     for h in horizons:
         if h == "Turnover":
-            if vol_target: detected_metric_map[h] = vol_target
+            if turnover_target: detected_metric_map[h] = turnover_target
             continue
         keywords = [h.lower(), h.lower().replace(" ", ""), h.lower().replace("s", "")]
         if h == "1 Day": keywords.append("price %")
@@ -2382,6 +2502,14 @@ Be specific, data-driven, and actionable for a retail investor.
                 except ValueError:
                     entry[h] = 0.0
 
+            # ── NEW: % Delivery column ──────────────────
+            if deliv_target:
+                raw_dval = str(row.get(deliv_target, "0")).replace("%", "").replace(",", "").strip()
+                try:
+                    entry["% Delivery"] = float(raw_dval) if raw_dval not in ["", "nan", "None"] else 0.0
+                except ValueError:
+                    entry["% Delivery"] = 0.0
+
             # ── NEW: Bottom Fishing Score column ──────────────────
             clean_r = {k: v for k, v in row.items() if not str(k).startswith('_')}
             bf_s, bf_g, _ = compute_bottom_fishing_score(clean_r, actual_cols)
@@ -2407,6 +2535,9 @@ Be specific, data-driven, and actionable for a retail investor.
                     display_perf_df[h] = display_perf_df[h].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "-")
                 else:
                     display_perf_df[h] = display_perf_df[h].apply(lambda x: f"+{x:.2f}%" if x > 0 else (f"{x:.2f}%" if x < 0 else "0.00%"))
+
+        if "% Delivery" in display_perf_df.columns:
+            display_perf_df["% Delivery"] = display_perf_df["% Delivery"].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else "-")
 
         perf_gb = GridOptionsBuilder.from_dataframe(display_perf_df)
         perf_gb.configure_column("RANK", width=70, pinned="left")
@@ -2455,7 +2586,7 @@ Be specific, data-driven, and actionable for a retail investor.
                 dyn_width = int(max(char_count, header_count) * 7 + 22)
             else:
                 # Default fixed widths
-                default_widths = {"STOCK NAME": 140, "CURRENT PRICE": 130, "🔬 BF Score": 110, "📊 BF Grade": 160}
+                default_widths = {"STOCK NAME": 140, "CURRENT PRICE": 130, "% Delivery": 110, "🔬 BF Score": 110, "📊 BF Grade": 160}
                 dyn_width = default_widths.get(col, 130)
 
             if col == "STOCK NAME":
@@ -2481,7 +2612,7 @@ Be specific, data-driven, and actionable for a retail investor.
     # ==========================================
     st.markdown("---")
     st.markdown("### 🔬 Bottom Fishing Scanner — Buy from Bottom Candidates")
-    st.caption("Stocks that are 8–15% above 52W Low, in uptrend, with high volume + strong fundamentals")
+    st.caption("Stocks that are 8–15% above 52W Low, in uptrend, with high Turnover + strong fundamentals")
 
     bf_width_col1, bf_width_col2 = st.columns([4, 1])
     with bf_width_col1:
@@ -2512,11 +2643,21 @@ Be specific, data-driven, and actionable for a retail investor.
             sector_v = clean_r.get(sector_col, "") if sector_col else ""
             nse_chart_url = f"https://charting.nseindia.com/?symbol={ticker}-EQ"
             symbol_link = f'<a href="{nse_chart_url}" target="_blank" style="text-decoration:none; color:#000000; font-weight:bold;">{ticker}</a>'
+
+            deliv_v = None
+            if deliv_target:
+                raw_dv = str(clean_r.get(deliv_target, "")).replace("%", "").replace(",", "").strip()
+                try:
+                    deliv_v = float(raw_dv) if raw_dv not in ["", "nan", "None"] else None
+                except ValueError:
+                    deliv_v = None
+
             bf_results.append({
                 "Symbol": symbol_link,
                 "Score": bf_s,
                 "Grade": bf_g,
                 "CMP": cmp_v,
+                "% Delivery": f"{deliv_v:.2f}%" if deliv_v is not None else "-",
                 "Sector": str(sector_v)[:30],
                 "Key Reasons": " | ".join(bf_rsns[:3])
             })
@@ -2542,7 +2683,7 @@ Be specific, data-driven, and actionable for a retail investor.
         }
         """)
 
-        bf_default_widths = {"Symbol": 120, "Score": 90, "Grade": 160, "CMP": 100, "Sector": 200, "Key Reasons": 400}
+        bf_default_widths = {"Symbol": 120, "Score": 90, "Grade": 160, "CMP": 100, "% Delivery": 110, "Sector": 200, "Key Reasons": 400}
         for col in bf_scan_df.columns:
             if bf_sizing_mode == "✅ Fit to Row 1" and len(bf_scan_df) > 0:
                 char_count = get_clean_text_length(bf_scan_df.iloc[0][col])
@@ -3017,13 +3158,14 @@ try:
         filtered_symbols_full = filtered_df['_raw_symbol_'].dropna().unique()
         
         if len(filtered_symbols_full) > 0:
-            news_tab1, news_tab2, news_tab3, news_tab4, news_tab5, news_tab6 = st.tabs([
+            news_tab1, news_tab2, news_tab3, news_tab4, news_tab5, news_tab6, news_tab7 = st.tabs([
                 "🚨 Latest Alerts Timeline", 
                 "🏢 Alerts by Stock",
                 "📰 Smart News Engine (1 Day)",
                 "📰 Smart News Engine (All News)",
                 "📢 Corporate Announcements", 
-                "📢 DOCUMENTS HUB" 
+                "📢 DOCUMENTS HUB",
+                "📜 Rules"
             ])
             
             master_alerts_list = []
@@ -3373,6 +3515,20 @@ try:
                                     badges_html += f"<a href='{href}' target='_blank' style='background:{bg}; color:{fg}; padding:3px 10px; border-radius:4px; font-size:0.76em; font-weight:600; text-decoration:none;'>{label}</a>"
                                 badges_html += "</div>"
                                 st.markdown(badges_html, unsafe_allow_html=True)
+
+            # ==========================================
+            # TAB 7: RULES
+            # ==========================================
+            with news_tab7:
+                st.markdown("### 📜 Trading Rules")
+                st.markdown(
+                    "<span style='font-size:0.88em; color:#888;'>Edit the <code>TRADING_RULES_LIBRARY</code> "
+                    "constant near the top of the .py file to change anything shown below — same pattern as the "
+                    "AI Prompt Library &amp; Pine Script Custom Rules Library.</span>",
+                    unsafe_allow_html=True
+                )
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown(TRADING_RULES_LIBRARY)
 
         else:
             st.info("No stocks currently filtered to check.")
