@@ -1410,7 +1410,7 @@ if not raw_df.empty:
     if selected_symbol_col in filtered_df.columns:
         core_sequence.append(selected_symbol_col)
 
-    turnover_target = next((c for c in actual_cols if "Turnover" in c.lower()), None)
+    turnover_target = next((c for c in actual_cols if "turnover" in c.lower()), None)
     if turnover_target and turnover_target not in core_sequence: core_sequence.append(turnover_target)
 
     close_target = next((c for c in actual_cols if "close price" in c.lower() or "prev" in c.lower()), None)
