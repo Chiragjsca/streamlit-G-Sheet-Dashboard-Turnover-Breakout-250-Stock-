@@ -176,6 +176,176 @@ Rule 3 → Buy Only 52-Week Low Stocks
 - **Priority order:** IPO → F&O → 52-Week Low Shares.
 """
 
+# ==========================================
+# 👁️ COLUMN VISIBILITY CONFIGURATION
+# ==========================================
+# Hide table columns per sheet — two ways, use either or both together:
+#
+#   1) HIDDEN_COLUMNS_BY_NAME   -> hide by the exact column HEADER TEXT (as it appears in the sheet)
+#   2) HIDDEN_COLUMNS_BY_LETTER -> hide by the SPREADSHEET COLUMN LETTER (A, B, C ... Z, AA, AB ...)
+#      Letters are counted left-to-right exactly as in Google Sheets, so this also works for
+#      blank/empty-header columns that have no text to match on.
+#
+# sheet_names = ["Top 250 Stocks", "NSE Fundamentals", "Final List", "Final List 2", "Diff @ 200 DMA", "+%", "-%"]
+#
+# Add/edit a key for any sheet name above. A sheet with no key (or an empty list) shows all its columns.
+# To stop hiding something, just delete its line from the list below.
+
+HIDDEN_COLUMNS_BY_NAME = {
+    "Top 250 Stocks": [
+        "50 DMA",
+        "100 DMA",
+        "200 DMA",
+        "NSE 1",
+        "Trading View 1",
+        "History Data 1",
+        "Screener 1",
+        "Zerodha 1",
+        "Chartlink 1",
+        "Market smith india 1",
+        "Official NSE URL 1",
+    ],
+    "NSE Fundamentals": [],
+    "Final List": [],
+    "Final List 2": [],
+    "Diff @ 200 DMA": [],
+    "+%": [],
+    "-%": [],
+}
+
+# NOTE: the columns below are hidden by default because they are blank/empty-header
+# columns in the actual Google Sheet (no header text to hide them by name). Add more
+# letters for any sheet to hide other columns by position, or delete letters to unhide.
+HIDDEN_COLUMNS_BY_LETTER = {
+    "Top 250 Stocks": [
+        "E", "F", "G",
+        "AA", "AB", "AC", "AD", "AE", "AF", "AG", "AH",
+    ],
+    "NSE Fundamentals": [],
+    "Final List": [],
+    "Final List 2": [],
+    "Diff @ 200 DMA": [],
+    "+%": [],
+    "-%": [],
+}
+
+def _col_letter_to_index(letter: str) -> int:
+    """Convert a spreadsheet column letter ('A', 'B', ... 'Z', 'AA', 'AB', ...) to a 0-based index."""
+    letter = str(letter).strip().upper()
+    if not letter or not letter.isalpha():
+        return -1
+    idx = 0
+    for ch in letter:
+        idx = idx * 26 + (ord(ch) - ord('A') + 1)
+    return idx - 1
+
+def get_hidden_columns(sheet_name: str, ordered_columns) -> set:
+    """Resolve HIDDEN_COLUMNS_BY_NAME + HIDDEN_COLUMNS_BY_LETTER for a sheet into a set of
+    actual column names. `ordered_columns` must be the real data columns in original
+    left-to-right sheet order (i.e. the same order columns appear in Google Sheets)."""
+    ordered_columns = list(ordered_columns)
+    hidden = set()
+
+    for col_name in HIDDEN_COLUMNS_BY_NAME.get(sheet_name, []):
+        if col_name in ordered_columns:
+            hidden.add(col_name)
+
+    for letter in HIDDEN_COLUMNS_BY_LETTER.get(sheet_name, []):
+        idx = _col_letter_to_index(letter)
+        if 0 <= idx < len(ordered_columns):
+            hidden.add(ordered_columns[idx])
+
+    return hidden
+
+# ==========================================
+# 🔒 SYMBOL COLUMN — LOCKED PER SHEET
+# ==========================================
+# The "Symbol Column" (used for hyperlinks/search/selection) is locked by default for
+# every sheet — it shows in the sidebar but can no longer be changed by accident.
+#
+# Leave a sheet set to None to keep the existing auto-detection (it looks for a column
+# named "NSE Code", "Symbol", "Ticker", "Stock Symbol", "Id" or "Stock"). To force a
+# specific column instead, set the exact header text below.
+LOCKED_SYMBOL_COLUMN = {
+    "Top 250 Stocks": None,
+    "NSE Fundamentals": None,
+    "Final List": None,
+    "Final List 2": None,
+    "Diff @ 200 DMA": None,
+    "+%": None,
+    "-%": None,
+}
+
+# ==========================================
+# 🔃 COLUMN ORDER / PRIORITY CONFIGURATION
+# ==========================================
+# Arrange (reorder) table columns per sheet — two ways, use either or both together:
+#
+#   1) COLUMN_ORDER_BY_NAME   -> list column HEADER TEXT in the order you want them to appear
+#   2) COLUMN_ORDER_BY_LETTER -> list SPREADSHEET COLUMN LETTERS in the order you want them to appear
+#
+# Columns you list appear first, left to right, in the exact order written (letter-list first,
+# then name-list). Any column you don't list keeps its original relative position and is simply
+# appended afterwards. The locked Symbol column is always placed first, ahead of this list.
+#
+# sheet_names = ["Top 250 Stocks", "NSE Fundamentals", "Final List", "Final List 2", "Diff @ 200 DMA", "+%", "-%"]
+#
+# Add/edit a key for any sheet name above. A sheet with no key (or two empty lists) keeps the
+# app's original automatic ordering for that sheet.
+
+COLUMN_ORDER_BY_NAME = {
+    "Top 250 Stocks": [
+        "Turnover",
+        "Close",
+        "CMP",
+        "Price %",
+        "52W High",
+        "52W Low",
+        "Output",
+        "Differance from 200 DMA",
+        "Cumulative Average Rule (CAR) Rating",
+    ],
+    "NSE Fundamentals": [],
+    "Final List": [],
+    "Final List 2": [],
+    "Diff @ 200 DMA": [],
+    "+%": [],
+    "-%": [],
+}
+
+# NOTE: the columns below are arranged first by default for this sheet. Edit/extend freely —
+# add letters for any other sheet, reorder them, or remove letters to drop them from priority
+# (a dropped column simply falls back to its normal position instead of disappearing).
+COLUMN_ORDER_BY_LETTER = {
+    "Top 250 Stocks": ["B", "C", "D", "L"],
+    "NSE Fundamentals": [],
+    "Final List": [],
+    "Final List 2": [],
+    "Diff @ 200 DMA": [],
+    "+%": [],
+    "-%": [],
+}
+
+def get_priority_columns(sheet_name: str, ordered_columns) -> list:
+    """Resolve COLUMN_ORDER_BY_LETTER + COLUMN_ORDER_BY_NAME for a sheet into an ordered list
+    of actual column names (left-to-right priority). `ordered_columns` must be the real data
+    columns in original left-to-right sheet order (same order as in Google Sheets)."""
+    ordered_columns = list(ordered_columns)
+    priority = []
+
+    for letter in COLUMN_ORDER_BY_LETTER.get(sheet_name, []):
+        idx = _col_letter_to_index(letter)
+        if 0 <= idx < len(ordered_columns):
+            col = ordered_columns[idx]
+            if col not in priority:
+                priority.append(col)
+
+    for col_name in COLUMN_ORDER_BY_NAME.get(sheet_name, []):
+        if col_name in ordered_columns and col_name not in priority:
+            priority.append(col_name)
+
+    return priority
+
 import streamlit as st
 
 # ==========================================
