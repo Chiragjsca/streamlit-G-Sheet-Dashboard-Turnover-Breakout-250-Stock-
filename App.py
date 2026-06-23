@@ -710,8 +710,9 @@ st.caption("Live market data covering 2,000+ equities. Powered by TradingView.")
 with st.expander("🏆 Click to view Full-Market India Rankings", expanded=False):
     
     # Create the tabs based on your requested list
-    nse_tab1, nse_tab2, nse_tab3, nse_tab4, nse_tab5 = st.tabs([
+    nse_tab1, nse_tab2, nse_tab3, nse_tab4, nse_tab5, nse_tab6 = st.tabs([
         "🚀 Gainers & Losers", 
+        "📦 Volume & Active", 
         "📦 Turnover & Active", 
         "⭐ 52W High / Low", 
         "🔄 52W Reversals",
@@ -747,8 +748,18 @@ with st.expander("🏆 Click to view Full-Market India Rankings", expanded=False
         with colB:
             st.markdown("<p style='font-size:14px; font-weight:bold;'>🔻 Top Losers</p>", unsafe_allow_html=True)
             components.html(render_tv_widget("top_losers"), height=520)
+              
+    # 2nd & 3rd Tabs Combined: Volume Leaders & Most Active (Turnover/Value)
+    with nse_tab2:
+        colA, colB = st.columns(2)
+        with colA:
+            st.markdown("<p style='font-size:14px; font-weight:bold;'>📦 Volume Leaders</p>", unsafe_allow_html=True)
+            components.html(render_tv_widget("volume_leaders"), height=520)
+        with colB:
+            st.markdown("<p style='font-size:14px; font-weight:bold;'>🔥 Most Active (Volume & Value)</p>", unsafe_allow_html=True)
+            components.html(render_tv_widget("most_active"), height=520)
             
-    # 2nd & 3rd Tabs Combined: Turnover Leaders & Most Active (Turnover/Value)
+    # 4nd & 5rd Tabs Combined: Turnover Leaders & Most Active (Turnover/Value)
     with nse_tab2:
         colA, colB = st.columns(2)
         with colA:
@@ -981,18 +992,18 @@ with st.expander("🏆 Click to view Advanced Ranking Dashboards (Top 250 Stocks
         df_gainers = rank_data.nlargest(20, 'Pct_Change')
         df_losers = rank_data.nsmallest(20, 'Pct_Change')
         
-        # 2. Top 20 Turnover Gainers/Losers
-        df_turn_gainers = rank_data.nlargest(20, 'Turnover')
-        df_turn_losers = rank_data[rank_data['Turnover'] > 0].nsmallest(20, 'Turnover')
+        # 2. Top 20 Volume Gainers/Losers
+        df_vol_gainers = rank_data.nlargest(20, 'Volume')
+        df_vol_losers = rank_data[rank_data['Volume'] > 0].nsmallest(20, 'Volume')
         
-        # 3. Most Active by Turnover & Value (Sorted by Turnover, displaying both)
-        df_active_turn_val = rank_data.nlargest(20, 'Turnover') 
+        # 3. Most Active by Volume & Value (Sorted by Volume, displaying both)
+        df_active_vol_val = rank_data.nlargest(20, 'Volume') 
         
         # 4. Most Active by Value
         df_top_value = rank_data.nlargest(20, 'Value')
         
         # 5. Top by Turnover
-        df_top_turnover = rank_data.nlargest(20, 'Turnover_Actual')
+        df_top_turnover = rank_data.nlargest(20, 'Turnover')
         
         # 6. Recreating the Most Active variable from Dashboard-1 logic
         df_most_active = rank_data.nlargest(20, 'Value')
@@ -1000,8 +1011,8 @@ with st.expander("🏆 Click to view Advanced Ranking Dashboards (Top 250 Stocks
         # Create Tabs for the 6 categories
         rank_tab1, rank_tab2, rank_tab3, rank_tab4, rank_tab5, rank_tab6 = st.tabs([
             "📈 Gainers/Losers", 
-            "📦 Turnover Leaders", 
-            "🔥 Active (Turn & Val)", 
+            "📦 Volume Leaders", 
+            "🔥 Active (Vol & Val)", 
             "💰 Top by Value", 
             "💎 Top by Turnover",
             "💰 Most Active"
@@ -1015,15 +1026,15 @@ with st.expander("🏆 Click to view Advanced Ranking Dashboards (Top 250 Stocks
             st.markdown(build_ranking_cards_html(df_losers, "change"), unsafe_allow_html=True)
             
         with rank_tab2:
-            st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>📦 Top 20 by Turnover</p>", unsafe_allow_html=True)
-            st.markdown(build_ranking_cards_html(df_turn_gainers, "turnover"), unsafe_allow_html=True)
+            st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>📦 Top 20 by Volume</p>", unsafe_allow_html=True)
+            st.markdown(build_ranking_cards_html(df_vol_gainers, "volume"), unsafe_allow_html=True)
             
-            st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>💤 Bottom 20 by Turnover</p>", unsafe_allow_html=True)
-            st.markdown(build_ranking_cards_html(df_turn_losers, "turnover"), unsafe_allow_html=True)
+            st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>💤 Bottom 20 by Volume</p>", unsafe_allow_html=True)
+            st.markdown(build_ranking_cards_html(df_vol_losers, "volume"), unsafe_allow_html=True)
             
         with rank_tab3:
-            st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>🔥 Most Active Stocks (Turnover & Traded Value)</p>", unsafe_allow_html=True)
-            st.markdown(build_ranking_cards_html(df_active_turn_val, "turn_val"), unsafe_allow_html=True)
+            st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>🔥 Most Active Stocks (Volume & Traded Value)</p>", unsafe_allow_html=True)
+            st.markdown(build_ranking_cards_html(df_active_vol_val, "vol_val"), unsafe_allow_html=True)
             
         with rank_tab4:
             st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>💰 Most Active by Traded Value</p>", unsafe_allow_html=True)
@@ -1031,7 +1042,7 @@ with st.expander("🏆 Click to view Advanced Ranking Dashboards (Top 250 Stocks
             
         with rank_tab5:
             st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>💎 Highest Market Turnover</p>", unsafe_allow_html=True)
-            st.markdown(build_ranking_cards_html(df_top_turnover, "turnover_actual"), unsafe_allow_html=True)
+            st.markdown(build_ranking_cards_html(df_top_turnover, "turnover"), unsafe_allow_html=True)
 
         with rank_tab6:
             st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>💰 Most Active (Highest Traded Value)</p>", unsafe_allow_html=True)
