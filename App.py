@@ -709,7 +709,7 @@ st.caption("Live market data covering 2,000+ equities. Powered by TradingView.")
 
 with st.expander("🏆 Click to view Full-Market India Rankings", expanded=False):
     
-    # Create the tabs based on your requested list
+    # Create the tabs based on your requested list - 6 tabs total
     nse_tab1, nse_tab2, nse_tab3, nse_tab4, nse_tab5, nse_tab6 = st.tabs([
         "🚀 Gainers & Losers", 
         "📦 Volume & Active", 
@@ -739,7 +739,7 @@ with st.expander("🏆 Click to view Full-Market India Rankings", expanded=False
         </div>
         """
 
-    # 1st Tab: Gainers / Losers
+    # Tab 1: Gainers / Losers
     with nse_tab1:
         colA, colB = st.columns(2)
         with colA:
@@ -748,8 +748,8 @@ with st.expander("🏆 Click to view Full-Market India Rankings", expanded=False
         with colB:
             st.markdown("<p style='font-size:14px; font-weight:bold;'>🔻 Top Losers</p>", unsafe_allow_html=True)
             components.html(render_tv_widget("top_losers"), height=520)
-              
-    # 2nd & 3rd Tabs Combined: Volume Leaders & Most Active (Turnover/Value)
+            
+    # Tab 2: Volume Leaders & Most Active (Volume & Value)
     with nse_tab2:
         colA, colB = st.columns(2)
         with colA:
@@ -759,8 +759,8 @@ with st.expander("🏆 Click to view Full-Market India Rankings", expanded=False
             st.markdown("<p style='font-size:14px; font-weight:bold;'>🔥 Most Active (Volume & Value)</p>", unsafe_allow_html=True)
             components.html(render_tv_widget("most_active"), height=520)
             
-    # 4nd & 5rd Tabs Combined: Turnover Leaders & Most Active (Turnover/Value)
-    with nse_tab2:
+    # Tab 3: Turnover Leaders & Most Active (Turnover & Value)
+    with nse_tab3:
         colA, colB = st.columns(2)
         with colA:
             st.markdown("<p style='font-size:14px; font-weight:bold;'>📦 Turnover Leaders</p>", unsafe_allow_html=True)
@@ -769,8 +769,8 @@ with st.expander("🏆 Click to view Full-Market India Rankings", expanded=False
             st.markdown("<p style='font-size:14px; font-weight:bold;'>🔥 Most Active (Turnover & Value)</p>", unsafe_allow_html=True)
             components.html(render_tv_widget("most_active"), height=520)
             
-    # 7th Tab: 52 Week High / Low
-    with nse_tab3:
+    # Tab 4: 52 Week High / Low
+    with nse_tab4:
         colA, colB = st.columns(2)
         with colA:
             st.markdown("<p style='font-size:14px; font-weight:bold;'>⭐ New 52-Week Highs</p>", unsafe_allow_html=True)
@@ -779,8 +779,8 @@ with st.expander("🏆 Click to view Full-Market India Rankings", expanded=False
             st.markdown("<p style='font-size:14px; font-weight:bold;'>⭐ New 52-Week Lows</p>", unsafe_allow_html=True)
             components.html(render_tv_widget("new_52wk_low"), height=520)
             
-    # 8th Tab: Reversals from 52W High/Low
-    with nse_tab4:
+    # Tab 5: Reversals from 52W High/Low
+    with nse_tab5:
         colA, colB = st.columns(2)
         with colA:
             st.markdown("<p style='font-size:14px; font-weight:bold;'>📈 Outperforming 52W High (Reversal Up)</p>", unsafe_allow_html=True)
@@ -789,8 +789,8 @@ with st.expander("🏆 Click to view Full-Market India Rankings", expanded=False
             st.markdown("<p style='font-size:14px; font-weight:bold;'>📉 Underperforming 52W Low (Reversal Down)</p>", unsafe_allow_html=True)
             components.html(render_tv_widget("underperforming_52wk_low"), height=520)
             
-    # 9th Tab: Top 100 Traded (Full Screener)
-    with nse_tab5:
+    # Tab 6: Top 100 Traded (Full Screener)
+    with nse_tab6:
         st.markdown("<p style='font-size:14px; font-weight:bold;'>📊 Top 100+ Stocks Traded (Full India Screener)</p>", unsafe_allow_html=True)
         # Using the general screen so users can sort by turnover, volume, or rating manually
         components.html(render_tv_widget("general"), height=520)
