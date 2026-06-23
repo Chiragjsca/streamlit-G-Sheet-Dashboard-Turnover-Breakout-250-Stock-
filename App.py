@@ -71,7 +71,7 @@ SUGGESTED_AI_PROMPTS = [
     "Based on the current data provided, give me a quick summary of the technical performance and trend for {sym}. Also give me all other details and calculate if this company is profitable or not.",
     "Analyze the 52-week high and low data for {sym}. Is the stock closer to its peak or bottom? What does this imply for entry or exit timing? Identify the ideal buy zone.",
     "Examine the 50 DMA, 100 DMA, and 200 DMA data for {sym}. Is the stock in a bullish crossover, bearish zone, or consolidation phase? Explain the trend strength and momentum.",
-    "Using the Turnover data for {sym}, identify if there is unusual Turnover activity. Does the current Turnover indicate institutional buying, selling, or accumulation? What does it signal?",
+    "Using the turnover data for {sym}, identify if there is unusual turnover activity. Does the current turnover indicate institutional buying, selling, or accumulation? What does it signal?",
     "Evaluate the full fundamentals of {sym} — EPS, RONW%, D/E ratio, Net Profit (Cr.), Book Value, and Market Cap. Is this company financially healthy and worth long-term investment?",
     "What is the risk profile of {sym} based on its Pledged %, Promoters Holding %, Institutional Holding %, and Debt-to-Equity ratio? Should a retail investor be cautious right now?",
     "Compare {sym}'s current CMP vs its 200 DMA. Is the stock overbought, oversold, or fairly valued based on the Difference from 200 DMA metric? What is the ideal risk-reward entry zone?",
@@ -84,9 +84,9 @@ SUGGESTED_AI_PROMPTS = [
 # 🌲 PINE SCRIPT CUSTOM RULES LIBRARY
 # ==========================================
 PINE_CUSTOM_RULES = """Strategy 1 — Turnover Breakout with Dynamic Stop Loss
-  Rule 1: Enter long when today's volume / Turnover > 2× the 20-day average volume / Turnover AND price closes above the prior day's high; set stop loss at 1.5× ATR below entry price.
+  Rule 1: Enter long when today's turnover > 2× the 20-day average turnover AND price closes above the prior day's high; set stop loss at 1.5× ATR below entry price.
   Rule 2: Add a false breakout filter — price must hold above the breakout level for 2 consecutive candles before confirming entry; trail stop at the lowest low of the last 3 bars.
-  Rule 3: Set profit target at 2:1 risk-reward ratio; plot a volume / Turnover histogram overlay to identify surge bars visually; include an alert condition for live breakout detection.
+  Rule 3: Set profit target at 2:1 risk-reward ratio; plot a turnover histogram overlay to identify surge bars visually; include an alert condition for live breakout detection.
 
 Strategy 2 — Moving Average Crossover (50/100/200 DMA)
   Rule 4: Buy when 50 DMA crosses above 100 DMA with price trading above the 200 DMA; exit when 50 DMA crosses back below 100 DMA; use 200 DMA as the hard stop-loss floor.
@@ -94,14 +94,14 @@ Strategy 2 — Moving Average Crossover (50/100/200 DMA)
   Rule 6: Allow a re-entry if 50 DMA pulls back to 100 DMA without breaking below 200 DMA; set stop loss 2% below the 50 DMA value at the time of entry.
 
 Strategy 3 — Trend Following with Trailing Stop
-  Rule 7: Enter long when price breaks a 20-day high with above-average volume / Turnover and ADX > 25; apply a Chandelier Exit trailing stop set at 3× ATR from the highest close after entry.
+  Rule 7: Enter long when price breaks a 20-day high with above-average turnover and ADX > 25; apply a Chandelier Exit trailing stop set at 3× ATR from the highest close after entry.
   Rule 8: Use 200 DMA direction as the trend filter — only take long trades when price is above 200 DMA; tighten trailing stop to 2× ATR once profit exceeds 10% from entry.
   Rule 9: Add a re-entry condition: if stopped out but price remains above 200 DMA, re-enter on the next pullback to the 50 DMA; limit to a maximum of 2 re-entries per trend leg.
 
 Strategy 4 — Mean Reversion from 52W High/Low
   Rule 10: Buy when price is within 15% of the 52-week low AND RSI < 35; set profit target at the 52-week midpoint; place hard stop loss 5% below the 52-week low level.
   Rule 11: Exit/short signal when price is within 5% of the 52-week high with RSI > 70; use Bollinger Band upper band touch as secondary confirmation; target the middle Bollinger Band as exit.
-  Rule 12: Apply a volume / Turnover reversal filter — only enter when the reversal candle's volume / Turnover is ≥ 1.5× the 20-day average; plot the 52-week high and low as horizontal reference lines on the chart."""
+  Rule 12: Apply a turnover reversal filter — only enter when the reversal candle's turnover is ≥ 1.5× the 20-day average; plot the 52-week high and low as horizontal reference lines on the chart."""
 
 # ==========================================
 # 📜 TRADING RULES LIBRARY  (shown in the "Rules" tab under
@@ -141,7 +141,6 @@ Only buy **52-Week Low** stocks, ranked by the **Difference from 200 DMA** colum
 3. Sort results **−40% → −30% → −20% → −10%** (most negative first).
 
 **Mind Map:**
-```
 Rule 3 → Buy Only 52-Week Low Stocks
 │
 ├── Main Sheet → Open Tab "Diff @ 200 DMA"
@@ -150,11 +149,12 @@ Rule 3 → Buy Only 52-Week Low Stocks
 ├── Meaning → Stock is trading below its 200 DMA
 ├── Priority → More negative % = higher priority
 ├── Selection Criteria
-│     ├── Only 52-Week Low stocks
-│     ├── Negative Difference from 200 DMA
-│     └── Deep-discount stocks preferred
+│ ├── Only 52-Week Low stocks
+│ ├── Negative Difference from 200 DMA
+│ └── Deep-discount stocks preferred
 └── Final Action → Analyze & buy quality stocks
-```
+
+text
 
 ---
 
@@ -296,7 +296,8 @@ LOCKED_SYMBOL_COLUMN = {
 COLUMN_ORDER_BY_NAME = {
     "Top 250 Stocks": [
         "Turnover",
-        "Close",
+        "% Delivery",
+        "Close Price",
         "CMP",
         "Price %",
         "52W High",
@@ -455,7 +456,7 @@ import yfinance as yf
 import streamlit as st
 from datetime import datetime
 
-st.markdown("<p style='font-size:0.85rem; font-weight:bold; margin:0; padding:0;'>📊 Top 250 NSE Stock-Turnover Breakout Dashboard</p>", unsafe_allow_html=True)
+st.markdown("<p style='font-size:0.85rem; font-weight:bold; margin:0; padding:0;'>📊 Top 250 NSE Stock-Volume Breakout Dashboard</p>", unsafe_allow_html=True)
 st.caption(f"Data refreshed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
 @st.cache_data(ttl=60)
@@ -566,7 +567,7 @@ def load_sheet_data_with_colors(sheet_name):
         creds = Credentials.from_service_account_info(service_account_info, scopes=scope)
         client = gspread.authorize(creds)
 
-        spreadsheet_id = "1OvX7BdWiqejOmOsSiMogC2ni-b7irWch4TC2HqR_93c"
+        spreadsheet_id = "1SFhuZbLLlwwFsNo1k2RRx_Zp6bAkRR20W0F_zTwgdwU"
         encoded_sheet = urllib.parse.quote(sheet_name)
 
         authed_session = AuthorizedSession(creds)
@@ -889,10 +890,6 @@ def get_ranked_sheet_data():
     value_col = next((c for c in actual_cols if "value" in c.lower() and "face" not in c.lower() and "enterprise" not in c.lower()), None)
     turnover_col = next((c for c in actual_cols if "turnover" in c.lower()), None)
     
-    # This sheet has no dedicated Volume column — use Turnover as the proxy
-    if not vol_col:
-        vol_col = turnover_col
-    
     if not sym_col:
         return pd.DataFrame()
         
@@ -940,7 +937,7 @@ def build_ranking_cards_html(dataframe, metric_label="change"):
         # Decide what the pill displays based on the metric_label
         if metric_label == "volume":
             vol = row.get('Volume', 0)
-            pill_text = f"T.O: ₹{vol/10000000:,.1f}Cr" if vol >= 10000000 else f"T.O: ₹{vol:,.0f}"
+            pill_text = f"Vol: {vol/1000000:.1f}M" if vol >= 1000000 else f"Vol: {vol:,.0f}"
             
         elif metric_label == "value":
             val = row.get('Value', 0)
@@ -954,7 +951,7 @@ def build_ranking_cards_html(dataframe, metric_label="change"):
             # Custom dual-metric pill for "Most Active by Volume & Value"
             vol = row.get('Volume', 0)
             val = row.get('Value', 0)
-            v_str = f"₹{vol/10000000:,.1f}Cr" if vol >= 10000000 else f"₹{vol:,.0f}"
+            v_str = f"{vol/1000000:.1f}M" if vol >= 1000000 else f"{vol/1000:.1f}k"
             val_str = f"₹{val/10000000:,.1f}Cr" if val >= 10000000 else f"₹{val:,.0f}"
             pill_text = f"📦 {v_str} | 💰 {val_str}"
             
@@ -1095,17 +1092,17 @@ def compute_bottom_fishing_score(row, actual_cols):
                 reasons.append(f"❌ CMP {diff_pct:.1f}% below 200 DMA (downtrend)")
 
     # 3. Turnover/Activity (max 10 pts)
-    turnover = get_num(["turnover"])
-    if turnover and turnover > 0:
-        if turnover >= 10_000_000:
+    turn = get_num(["turnover"])
+    if turn and turn > 0:
+        if turn >= 10_000_000:
             score += 10
-            reasons.append(f"✅ High Turnover: {turnover:,.0f}")
-        elif turnover >= 1_000_000:
+            reasons.append(f"✅ High turnover: {turn:,.0f}")
+        elif turn >= 1_000_000:
             score += 6
-            reasons.append(f"🟡 Moderate Turnover: {turnover:,.0f}")
+            reasons.append(f"🟡 Moderate turnover: {turn:,.0f}")
         else:
             score += 2
-            reasons.append(f"⚠️ Low Turnover: {turnover:,.0f}")
+            reasons.append(f"⚠️ Low turnover: {turn:,.0f}")
 
     # 4. Zero or Low Debt (max 10 pts)
     de = get_num(["d/e ratio", "debt", "d/e"])
@@ -1398,14 +1395,28 @@ if not raw_df.empty:
     guess_idx = 0
     actual_cols = [c for c in raw_df.columns if not c.startswith("_bg_") and not c.startswith("_txt_")]
 
-    for i, col_name in enumerate(actual_cols):
-        if col_name.lower() in ["nse code", "symbol", "ticker", "stock symbol", "id", "stock"]:
-            guess_idx = i
-            break
+    # Columns configured to be hidden for this sheet (see HIDDEN_COLUMNS_BY_NAME /
+    # HIDDEN_COLUMNS_BY_LETTER near the top of the file).
+    hidden_cols_for_sheet = get_hidden_columns(selected_sheet, actual_cols)
+
+    # Symbol column: use the locked override for this sheet if one is configured
+    # (LOCKED_SYMBOL_COLUMN near the top of the file); otherwise auto-detect as before.
+    locked_symbol_override = LOCKED_SYMBOL_COLUMN.get(selected_sheet)
+    if locked_symbol_override and locked_symbol_override in actual_cols:
+        guess_idx = actual_cols.index(locked_symbol_override)
+    else:
+        for i, col_name in enumerate(actual_cols):
+            if col_name.lower() in ["nse code", "symbol", "ticker", "stock symbol", "id", "stock"]:
+                guess_idx = i
+                break
 
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Settings")
-    selected_symbol_col = st.sidebar.selectbox("Symbol Column:", actual_cols, index=guess_idx, key="filter_symbol_col")
+    selected_symbol_col = st.sidebar.selectbox(
+        "Symbol Column (locked):", actual_cols, index=guess_idx, key="filter_symbol_col",
+        disabled=True, help="Locked for consistency across sheets. To change it, edit "
+                             "LOCKED_SYMBOL_COLUMN near the top of the .py file."
+    )
 
     final_df = process_hyperlinks(raw_df, selected_symbol_col)
     filtered_df = final_df.copy()
@@ -1584,25 +1595,29 @@ if not raw_df.empty:
     if selected_symbol_col in filtered_df.columns:
         core_sequence.append(selected_symbol_col)
 
-    turnover_target = next((c for c in actual_cols if "turnover" in c.lower()), None)
-    if turnover_target and turnover_target not in core_sequence: core_sequence.append(turnover_target)
-
+    # NOTE: these "smart-guess" columns are always detected, even when a custom priority
+    # order is configured below — several other features further down the app (Watchlist,
+    # Breakout Finder, Horizon Performance, etc.) rely on these exact variables existing.
+    turn_target = next((c for c in actual_cols if "turnover" in c.lower()), None)
     close_target = next((c for c in actual_cols if "close price" in c.lower() or "prev" in c.lower()), None)
-    if close_target and close_target not in core_sequence: core_sequence.append(close_target)
-
     cmp_target = next((c for c in actual_cols if "cmp" in c.lower()), None)
-    if cmp_target and cmp_target not in core_sequence: core_sequence.append(cmp_target)
-
     pct_target = next((c for c in actual_cols if "price %" in c.lower()), None)
-    if pct_target and pct_target not in core_sequence: core_sequence.append(pct_target)
-
     high_target = next((c for c in actual_cols if "52" in c.lower() and "high" in c.lower() and "date" not in c.lower() and "%" not in c.lower()), None)
-    if high_target and high_target not in core_sequence: core_sequence.append(high_target)
-
     low_target = next((c for c in actual_cols if "52" in c.lower() and "low" in c.lower() and "date" not in c.lower() and "%" not in c.lower()), None)
-    if low_target and low_target not in core_sequence: core_sequence.append(low_target)
-
     deliv_target = next((c for c in actual_cols if "delivery" in c.lower()), None)
+
+    # If this sheet has a priority order configured (COLUMN_ORDER_BY_NAME /
+    # COLUMN_ORDER_BY_LETTER near the top of the file), use it for column placement.
+    # Otherwise fall back to the original smart-guess order above.
+    configured_priority = get_priority_columns(selected_sheet, actual_cols)
+    if configured_priority:
+        for col in configured_priority:
+            if col not in core_sequence:
+                core_sequence.append(col)
+    else:
+        for target in (turn_target, close_target, cmp_target, pct_target, high_target, low_target):
+            if target and target not in core_sequence:
+                core_sequence.append(target)
 
     all_other_fields = [c for c in filtered_df.columns if c not in core_sequence and not c.startswith("_bg_") and not c.startswith("_txt_") and c != "_raw_symbol_"]
     hidden_meta_attributes = [c for c in filtered_df.columns if c.startswith("_bg_") or c.startswith("_txt_") or c == "_raw_symbol_"]
@@ -1716,6 +1731,10 @@ if not raw_df.empty:
 
     for col in filtered_df.columns:
         if col.startswith("_bg_") or col.startswith("_txt_") or col == "_raw_symbol_":
+            gb.configure_column(col, hide=True)
+            continue
+
+        if col in hidden_cols_for_sheet:
             gb.configure_column(col, hide=True)
             continue
 
@@ -2037,7 +2056,7 @@ Formatting Requirements:
 |---|----------|-----------|-------------|
 | 1 | **52W Low Proximity** | 30 | CMP is 8–15% above 52W Low (ideal entry zone) |
 | 2 | **Uptrend (200 DMA)** | 15 | CMP above 200 DMA = confirmed uptrend |
-| 3 | **Turnover Activity** | 10 | High trading Turnover = institutional interest |
+| 3 | **Turnover Activity** | 10 | High trading turnover = institutional interest |
 | 4 | **Low/Zero Debt** | 10 | D/E ratio ≤ 0.1 is ideal (no loan burden) |
 | 5 | **Net Profitability** | 10 | Positive net profit confirms fundamental health |
 | 6 | **RONW %** | 10 | Return on Net Worth ≥ 15% = strong business |
@@ -2471,8 +2490,8 @@ Be specific, data-driven, and actionable for a retail investor.
     """, unsafe_allow_html=True)
 
     mkt_tabs = st.tabs([
-        "🔥 Most Active", "🚀 Volume Gainers", "🏆 Top Gainers/Losers", "⭐ 52W Boundaries", "📦 Stocks Traded", "⚖️ Advances/Declines",
-        "🕒 Pre-Open Market", "⚡ Price Band Hitters", "🗺️ Index Ticker Heatmap", "🎫 IPO Tracker", "⚠️ Volume Shockers",
+        "🔥 Most Active", "🚀 Turnover Gainers", "🏆 Top Gainers/Losers", "⭐ 52W Boundaries", "📦 Stocks Traded", "⚖️ Advances/Declines",
+        "🕒 Pre-Open Market", "⚡ Price Band Hitters", "🗺️ Index Ticker Heatmap", "🎫 IPO Tracker", "⚠️ Turnover Shockers",
         "📂 Document Reports", "🖋️ TV Script Engine", "🔮 MunafaSutra Tickers", "🎯 Dhan Asset Registry", "💎 Weekly Activity Metrics",
         "🔧 ScanX Core Screener", "🚦 ScanX Live Engine", "🎨 Screener Exploration", "📈 IPO Chittorgarh", "🏷️ IPO Watch Panel", "💓 NSE Pulse",
         "📊 Chartink Screeners", "📋 Chartink Dashboard", "🗾 Chartink Atlas", "📚 Mahesh Kaushik", "💰 EFTI Wealth",
@@ -2646,7 +2665,7 @@ Be specific, data-driven, and actionable for a retail investor.
 
     for h in horizons:
         if h == "Turnover":
-            if turnover_target: detected_metric_map[h] = turnover_target
+            if turn_target: detected_metric_map[h] = turn_target
             continue
         keywords = [h.lower(), h.lower().replace(" ", ""), h.lower().replace("s", "")]
         if h == "1 Day": keywords.append("price %")
@@ -2786,7 +2805,7 @@ Be specific, data-driven, and actionable for a retail investor.
     # ==========================================
     st.markdown("---")
     st.markdown("### 🔬 Bottom Fishing Scanner — Buy from Bottom Candidates")
-    st.caption("Stocks that are 8–15% above 52W Low, in uptrend, with high Turnover + strong fundamentals")
+    st.caption("Stocks that are 8–15% above 52W Low, in uptrend, with high turnover + strong fundamentals")
 
     bf_width_col1, bf_width_col2 = st.columns([4, 1])
     with bf_width_col1:
