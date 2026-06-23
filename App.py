@@ -992,23 +992,23 @@ with st.expander("🏆 Click to view Advanced Ranking Dashboards (Top 250 Stocks
         df_gainers = rank_data.nlargest(20, 'Pct_Change')
         df_losers = rank_data.nsmallest(20, 'Pct_Change')
         
-        # 2. Top 20 Volume Gainers/Losers
-        df_vol_gainers = rank_data.nlargest(20, 'Volume')
-        df_vol_losers = rank_data[rank_data['Volume'] > 0].nsmallest(20, 'Volume')
-        
-        # 3. Most Active by Volume & Value (Sorted by Volume, displaying both)
-        df_active_vol_val = rank_data.nlargest(20, 'Volume') 
-        
+        # 2. Top 20 Volume Leaders (using Turnover data from sheet)
+        df_vol_gainers = rank_data.nlargest(20, 'Turnover')
+        df_vol_losers = rank_data[rank_data['Turnover'] > 0].nsmallest(20, 'Turnover')
+
+        # 3. Most Active by Volume & Value (Sorted by Turnover, displaying both)
+        df_active_vol_val = rank_data.nlargest(20, 'Turnover') 
+
         # 4. Most Active by Value
         df_top_value = rank_data.nlargest(20, 'Value')
-        
+
         # 5. Top by Turnover
-        df_top_turnover = rank_data.nlargest(20, 'Turnover')
-        
+        df_top_turnover = rank_data.nlargest(20, 'Turnover_Actual')
+
         # 6. Recreating the Most Active variable from Dashboard-1 logic
         df_most_active = rank_data.nlargest(20, 'Value')
-        
-        # Create Tabs for the 6 categories
+
+        # Create Tabs for the 6 categories - KEEP VOLUME NAMES AS SHOWN IN SCREENSHOT
         rank_tab1, rank_tab2, rank_tab3, rank_tab4, rank_tab5, rank_tab6 = st.tabs([
             "📈 Gainers/Losers", 
             "📦 Volume Leaders", 
@@ -1017,7 +1017,7 @@ with st.expander("🏆 Click to view Advanced Ranking Dashboards (Top 250 Stocks
             "💎 Top by Turnover",
             "💰 Most Active"
         ])
-        
+
         with rank_tab1:
             st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>🚀 Top 20 Gainers</p>", unsafe_allow_html=True)
             st.markdown(build_ranking_cards_html(df_gainers, "change"), unsafe_allow_html=True)
@@ -1027,14 +1027,14 @@ with st.expander("🏆 Click to view Advanced Ranking Dashboards (Top 250 Stocks
             
         with rank_tab2:
             st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>📦 Top 20 by Volume</p>", unsafe_allow_html=True)
-            st.markdown(build_ranking_cards_html(df_vol_gainers, "volume"), unsafe_allow_html=True)
+            st.markdown(build_ranking_cards_html(df_vol_gainers, "turnover"), unsafe_allow_html=True)
             
             st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>💤 Bottom 20 by Volume</p>", unsafe_allow_html=True)
-            st.markdown(build_ranking_cards_html(df_vol_losers, "volume"), unsafe_allow_html=True)
+            st.markdown(build_ranking_cards_html(df_vol_losers, "turnover"), unsafe_allow_html=True)
             
         with rank_tab3:
             st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>🔥 Most Active Stocks (Volume & Traded Value)</p>", unsafe_allow_html=True)
-            st.markdown(build_ranking_cards_html(df_active_vol_val, "vol_val"), unsafe_allow_html=True)
+            st.markdown(build_ranking_cards_html(df_active_vol_val, "turn_val"), unsafe_allow_html=True)
             
         with rank_tab4:
             st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>💰 Most Active by Traded Value</p>", unsafe_allow_html=True)
@@ -1042,7 +1042,7 @@ with st.expander("🏆 Click to view Advanced Ranking Dashboards (Top 250 Stocks
             
         with rank_tab5:
             st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>💎 Highest Market Turnover</p>", unsafe_allow_html=True)
-            st.markdown(build_ranking_cards_html(df_top_turnover, "turnover"), unsafe_allow_html=True)
+            st.markdown(build_ranking_cards_html(df_top_turnover, "turnover_actual"), unsafe_allow_html=True)
 
         with rank_tab6:
             st.markdown("<p style='font-size:14px; font-weight:bold; margin-top:10px;'>💰 Most Active (Highest Traded Value)</p>", unsafe_allow_html=True)
