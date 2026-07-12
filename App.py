@@ -3362,8 +3362,8 @@ Be specific, data-driven, and actionable for a retail investor.
                             ("% Delivery", ["% delivery", "delivery %", "delivery"]),
                             ("52W High Date", ["52w high date", "52 week high date"]),
                             ("52W Low Date", ["52w low date", "52 week low date"]),
-                            ("Volume", ["volume"]),
                             ("Turnover", ["turnover"]),
+                            ("Volume", ["volume"]),
                         ])
 
                         # ── Group 2: Signals / system output ──
