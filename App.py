@@ -2270,18 +2270,26 @@ if not raw_df.empty:
         else:
             width, min_width = (220, 150) if col.lower() in priority_columns_lower else (120, 80)
 
-        pinned_value = "left" if is_first_visible_column else None
+        # Pin explicitly by column IDENTITY (the locked Symbol column), not just by whichever
+        # column happens to be first in iteration order — this is what keeps "Symbol" frozen on
+        # the left edge while scrolling through the other 60+ columns, even if ordering logic
+        # upstream ever changes. The old first-visible-column fallback is kept only as a safety
+        # net for sheets where no Symbol column was detected at all.
+        is_symbol_col = (col == selected_symbol_col)
+        pinned_value = "left" if (is_symbol_col or is_first_visible_column) else None
         if is_first_visible_column: is_first_visible_column = False
 
         c_low = col.lower()
-        if col == selected_symbol_col or any(k in c_low for k in ["trading view", "history data", "screener", "zerodha", "chartlink", "market smith", "official nse", "nse"]):
+        if is_symbol_col or any(k in c_low for k in ["trading view", "history data", "screener", "zerodha", "chartlink", "market smith", "official nse", "nse"]):
             gb.configure_column(col, width=width, minWidth=min_width, sortable=True, filter=True, resizable=True,
-                editable=False, pinned=pinned_value, cellRenderer=html_renderer, cellStyle=exact_mirror_style)
+                editable=False, pinned=pinned_value, lockPinned=is_symbol_col, suppressMovable=is_symbol_col,
+                checkboxSelection=is_symbol_col,
+                cellRenderer=html_renderer, cellStyle=exact_mirror_style)
         else:
             gb.configure_column(col, width=width, minWidth=min_width, sortable=True, filter=True, resizable=True,
                 editable=False, pinned=pinned_value, cellStyle=exact_mirror_style)
 
-    gb.configure_grid_options(domLayout="normal", rowHeight=35, headerHeight=45, enableCellTextSelection=True, ensureDomOrder=True, alwaysShowHorizontalScroll=True)
+    gb.configure_grid_options(domLayout="normal", rowHeight=35, headerHeight=45, enableCellTextSelection=True, ensureDomOrder=True, alwaysShowHorizontalScroll=True, suppressColumnVirtualisation=True)
     grid_options = gb.build()
 
     grid_response = AgGrid(
