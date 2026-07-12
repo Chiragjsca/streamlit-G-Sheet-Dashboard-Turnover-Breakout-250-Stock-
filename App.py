@@ -4371,6 +4371,8 @@ Be specific, data-driven, and actionable for a retail investor.
                     perf_gb.configure_column(col, width=dyn_width, minWidth=min_w, cellStyle=bf_grade_js)
                 elif col in ("Volume Trend", "Breakout Signal", "Trend", "MACD Crossover", "Buy Signal"):
                     perf_gb.configure_column(col, width=dyn_width, minWidth=min_w, cellStyle=trend_style_js)
+                elif col == "Turnover":
+                    perf_gb.configure_column(col, width=dyn_width, minWidth=min_w)
                 elif col in detected_metric_map or col == "Diff. from 200 DMA":
                     perf_gb.configure_column(col, width=dyn_width, minWidth=min_w, cellStyle=color_code_js)
                 else:
