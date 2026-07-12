@@ -2552,7 +2552,7 @@ Formatting Requirements:
             # ==========================================
             # 🔬 BOTTOM FISHING SCORE TAB (NEW!)
             # ==========================================
-            with ws_tabs[9]:
+            with ws_tabs[10]:
                 st.markdown(f"### 🔬 Bottom Fishing Analysis: **{sym}**")
                 st.caption("Scores this stock on 8 key criteria for buying from the bottom. Based entirely on your live sheet data.")
 
