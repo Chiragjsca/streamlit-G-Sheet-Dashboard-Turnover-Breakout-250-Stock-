@@ -647,6 +647,26 @@ def rgb_to_hex(color_dict):
     r, g, b = int(color_dict.get('red', 0) * 255), int(color_dict.get('green', 0) * 255), int(color_dict.get('blue', 0) * 255)
     return f"#{r:02x}{g:02x}{b:02x}"
 
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_stock_ohlc_history(nse_symbol, period="1y"):
+    """Fetch daily OHLC history for an NSE symbol via yfinance (used for the price/EMA/RSI chart tab)."""
+    try:
+        raw_sym = str(nse_symbol).strip().upper()
+        if not raw_sym:
+            return pd.DataFrame()
+        ticker_code = raw_sym if raw_sym.endswith(".NS") else f"{raw_sym}.NS"
+        hist = yf.download(ticker_code, period=period, interval="1d",
+                            progress=False, auto_adjust=True)
+        if hist is None or hist.empty:
+            return pd.DataFrame()
+        # yfinance sometimes returns a MultiIndex on columns even for a single ticker
+        if isinstance(hist.columns, pd.MultiIndex):
+            hist.columns = hist.columns.get_level_values(0)
+        hist.index = pd.to_datetime(hist.index)
+        return hist
+    except Exception:
+        return pd.DataFrame()
+
 @st.cache_data(ttl=300)
 def load_sheet_data_with_colors(sheet_name):
     try:
