@@ -1636,6 +1636,400 @@ if not raw_df.empty:
     enforced_column_layout = core_sequence + all_other_fields + hidden_meta_attributes
     filtered_df = filtered_df[enforced_column_layout]
 
+        # ==========================================
+    # 🚀 EXECUTIVE DASHBOARD — AT-A-GLANCE MARKET SNAPSHOT
+    # Summarizes whatever sheet + filters are currently active (filtered_df),
+    # reusing the smart-guessed column variables (pct_target, vol_target,
+    # cmp_target, high_target, low_target, rsi_target, etc.) computed above.
+    # Fully defensive: every widget checks its source column exists before
+    # rendering, so this works across all sheets even when columns differ.
+    # ==========================================
+    st.markdown("---")
+    with st.expander(f"🚀 Executive Dashboard — {selected_sheet}", expanded=True):
+        st.caption("Live snapshot of the currently filtered stock universe. Adjust sidebar filters to update instantly.")
+
+        def _dash_numify(series):
+            """Strip %, commas, ₹ and whitespace, then coerce to numeric."""
+            if series is None:
+                return pd.Series(dtype=float)
+            return pd.to_numeric(
+                series.astype(str).str.replace(r'[%,₹\s]', '', regex=True),
+                errors='coerce'
+            )
+
+        dash_df = filtered_df
+        total_stocks = len(dash_df)
+
+        pct_series = _dash_numify(dash_df[pct_target]) if pct_target and pct_target in dash_df.columns else pd.Series(dtype=float)
+        vol_series = _dash_numify(dash_df[vol_target]) if vol_target and vol_target in dash_df.columns else pd.Series(dtype=float)
+        cmp_series = _dash_numify(dash_df[cmp_target]) if cmp_target and cmp_target in dash_df.columns else pd.Series(dtype=float)
+        high_series = _dash_numify(dash_df[high_target]) if high_target and high_target in dash_df.columns else pd.Series(dtype=float)
+        low_series = _dash_numify(dash_df[low_target]) if low_target and low_target in dash_df.columns else pd.Series(dtype=float)
+        rsi_series = _dash_numify(dash_df[rsi_target]) if rsi_target and rsi_target in dash_df.columns else pd.Series(dtype=float)
+        deliv_series = _dash_numify(dash_df[deliv_target]) if deliv_target and deliv_target in dash_df.columns else pd.Series(dtype=float)
+
+        mcap_target = next((c for c in actual_cols if "market cap" in c.lower()), None)
+        mcap_series = _dash_numify(dash_df[mcap_target]) if mcap_target and mcap_target in dash_df.columns else pd.Series(dtype=float)
+        diff200_series = _dash_numify(dash_df[diff_200_target]) if diff_200_target and diff_200_target in dash_df.columns else pd.Series(dtype=float)
+        turnover_target = next((c for c in actual_cols if "turnover" in c.lower()), None)
+        turnover_series = _dash_numify(dash_df[turnover_target]) if turnover_target and turnover_target in dash_df.columns else pd.Series(dtype=float)
+
+        advances = int((pct_series > 0).sum()) if not pct_series.empty else 0
+        declines = int((pct_series < 0).sum()) if not pct_series.empty else 0
+        unchanged = int((pct_series == 0).sum()) if not pct_series.empty else 0
+        avg_change = float(pct_series.mean()) if pct_series.notna().any() else 0.0
+        adv_decline_ratio = (advances / declines) if declines > 0 else None
+        median_change = float(pct_series.median()) if pct_series.notna().any() else None
+        total_volume = float(vol_series.sum()) if vol_series.notna().any() else 0.0
+        total_mcap = float(mcap_series.sum()) if mcap_series.notna().any() else 0.0
+        total_turnover = float(turnover_series.sum()) if turnover_series.notna().any() else 0.0
+        avg_rsi = float(rsi_series.mean()) if rsi_series.notna().any() else None
+        avg_deliv = float(deliv_series.mean()) if deliv_series.notna().any() else None
+        above_200dma_count = int((diff200_series > 0).sum()) if diff200_series.notna().any() else 0
+        below_200dma_count = int((diff200_series < 0).sum()) if diff200_series.notna().any() else 0
+
+        breakout_count = 0
+        if breakout_signal_target and breakout_signal_target in dash_df.columns:
+            breakout_count = int(dash_df[breakout_signal_target].astype(str).str.contains("breakout|buy|bullish", case=False, na=False).sum())
+
+        buy_signal_count = 0
+        if buy_signal_target and buy_signal_target in dash_df.columns:
+            buy_signal_count = int(dash_df[buy_signal_target].astype(str).str.contains("buy", case=False, na=False).sum())
+
+        near_high_count, near_low_count = 0, 0
+        near_low_15_count = 0
+        if cmp_series.notna().any() and high_series.notna().any():
+            prox_high = (cmp_series / high_series.replace(0, np.nan)) * 100
+            near_high_count = int((prox_high >= 95).sum())
+        if cmp_series.notna().any() and low_series.notna().any():
+            prox_low = (cmp_series / low_series.replace(0, np.nan)) * 100
+            near_low_count = int((prox_low <= 105).sum())
+            near_low_15_count = int((prox_low <= 115).sum())
+
+        # ---------- KPI cards ----------
+        def _dash_kpi(container, label, value, bg="#f5f7fa", fg="#1a1a1a"):
+            container.markdown(
+                f"<div style='background:{bg}; border-radius:10px; padding:12px 8px; text-align:center; border:1px solid rgba(0,0,0,0.06);'>"
+                f"<div style='font-size:0.70em; color:#666; font-weight:700; letter-spacing:0.2px;'>{label}</div>"
+                f"<div style='font-size:1.30em; font-weight:800; color:{fg}; margin-top:2px;'>{value}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+        kpi_row1 = st.columns(7)
+        _dash_kpi(kpi_row1[0], "📦 TOTAL STOCKS", f"{total_stocks:,}")
+        _dash_kpi(kpi_row1[1], "🟢 ADVANCES", f"{advances:,}", bg="#e8f5e9", fg="#1b5e20")
+        _dash_kpi(kpi_row1[2], "🔴 DECLINES", f"{declines:,}", bg="#ffebee", fg="#b71c1c")
+        _dash_kpi(kpi_row1[3], "⚪ UNCHANGED", f"{unchanged:,}")
+        _dash_kpi(
+            kpi_row1[4], "🕳️ NEAR 52W LOW (≤15%)",
+            f"{near_low_15_count:,}" if (cmp_series.notna().any() and low_series.notna().any()) else "N/A",
+            bg="#ffebee", fg="#b71c1c",
+        )
+        _dash_kpi(kpi_row1[5], "🚀 BREAKOUTS", f"{breakout_count:,}", bg="#fff8e1", fg="#e65100")
+        _dash_kpi(kpi_row1[6], "✅ BUY SIGNALS", f"{buy_signal_count:,}", bg="#e3f2fd", fg="#0d47a1")
+
+        st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
+
+        kpi_row2 = st.columns(4)
+        _dash_kpi(kpi_row2[0], "🏔️ NEAR 52W HIGH (≥95%)", f"{near_high_count:,}", bg="#e8f5e9", fg="#1b5e20")
+        _dash_kpi(kpi_row2[1], "🕳️ NEAR 52W LOW (≤5%)", f"{near_low_count:,}", bg="#ffebee", fg="#b71c1c")
+        _dash_kpi(kpi_row2[2], "📉 BELOW 200 DMA", f"{below_200dma_count:,}" if diff200_series.notna().any() else "N/A", bg="#ffebee", fg="#b71c1c")
+        _dash_kpi(kpi_row2[3], "🎯 ABOVE 200 DMA", f"{above_200dma_count:,}" if diff200_series.notna().any() else "N/A", bg="#e8f5e9", fg="#1b5e20")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Every Executive Dashboard chart uses this config: it strips out the
+        # zoom/pan/select/lasso/autoscale/reset buttons and leaves ONLY the
+        # "Download plot as PNG" camera icon in the modebar. This stops accidental
+        # drag/zoom "movement" on these overview charts — they're meant to be
+        # read and exported, not interactively explored.
+        DASH_CHART_CONFIG = {"displaylogo": False, "modeBarButtons": [["toImage"]]}
+
+        def _gradient_color(frac):
+            """Red -> Amber -> Green interpolation, same stops as the old Plotly colorscale."""
+            frac = max(0.0, min(1.0, frac))
+            stops = [(0.0, (234, 67, 53)), (0.5, (249, 168, 37)), (1.0, (15, 157, 88))]
+            for i in range(len(stops) - 1):
+                f0, c0 = stops[i]
+                f1, c1 = stops[i + 1]
+                if f0 <= frac <= f1:
+                    t = (frac - f0) / (f1 - f0) if f1 > f0 else 0.0
+                    r = int(c0[0] + (c1[0] - c0[0]) * t)
+                    g = int(c0[1] + (c1[1] - c0[1]) * t)
+                    b = int(c0[2] + (c1[2] - c0[2]) * t)
+                    return f"#{r:02x}{g:02x}{b:02x}"
+            return "#999999"
+
+        def _render_dot_scatter_html(title_text, points, y_min, y_max, y_label, height=340):
+            """Pure HTML/CSS 'scatter' where every point is a REAL <a href target=_blank>
+            anchor tag — the exact same clickable-link technique already used (and
+            confirmed working) by the Top 10 Daily Badges further down this page.
+            We avoid embedding Plotly inside components.html here because that renders
+            in a sandboxed iframe where a JS-triggered window.open() can silently get
+            blocked by the browser — a real anchor tag never has that problem.
+            points: list of (symbol, value, url) tuples.
+            """
+            if not points:
+                st.info("No data available for this chart.")
+                return
+            n = len(points)
+            span = (y_max - y_min) or 1.0
+            dots_html = ""
+            for i, (sym, val, url) in enumerate(points):
+                frac = (val - y_min) / span
+                frac_c = max(0.0, min(1.0, frac))
+                color = _gradient_color(frac_c)
+                left_pct = (i / max(n - 1, 1)) * 100
+                top_pct = (1 - frac_c) * 100
+                dots_html += (
+                    f'<a href="{url}" target="_blank" title="{sym}: {val:.2f}{y_label}" '
+                    f'style="position:absolute; left:{left_pct:.3f}%; top:{top_pct:.3f}%; '
+                    f'width:11px; height:11px; margin:-6px 0 0 -6px; border-radius:50%; '
+                    f'background:{color}; display:block; border:1px solid rgba(255,255,255,0.75); '
+                    f'box-shadow:0 0 1px rgba(0,0,0,0.35); cursor:pointer;"></a>'
+                )
+            gridlines = ""
+            for gp, gv in [(0, y_max), (25, None), (50, (y_min + y_max) / 2), (75, None), (100, y_min)]:
+                label = f"{gv:.0f}" if gv is not None else ""
+                gridlines += (
+                    f'<div style="position:absolute; left:0; right:0; top:{gp}%; border-top:1px dashed rgba(0,0,0,0.08); height:0;">'
+                    f'<span style="position:absolute; left:-2px; top:-8px; font-size:10px; color:#9aa0a6;">{label}</span></div>'
+                )
+            html = (
+                f'<div style="font-family:\'Source Sans Pro\',sans-serif;">'
+                f'<div style="font-weight:700; font-size:14px; margin-bottom:2px;">{title_text}</div>'
+                f'<div style="font-size:11px; color:#9aa0a6; margin-bottom:8px;">Click any dot to open its NSE chart in a new tab</div>'
+                f'<div style="position:relative; width:calc(100% - 26px); height:{height}px; margin-left:26px; '
+                f'background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius:6px; overflow:hidden;">'
+                f'{gridlines}'
+                f'{dots_html}'
+                f'</div>'
+                f'<div style="display:flex; justify-content:space-between; margin-left:26px; margin-top:4px;">'
+                f'<span style="font-size:10px; color:#ea4335;">\u25cf low</span>'
+                f'<span style="font-size:10px; color:#f9a825;">\u25cf mid</span>'
+                f'<span style="font-size:10px; color:#0f9d58;">\u25cf high</span>'
+                f'</div>'
+                f'</div>'
+            )
+            # NOTE: rendered via components.html (real iframe), NOT st.markdown().
+            # st.markdown() pipes the string through Streamlit's Python-Markdown
+            # parser first, and this HTML — a long single-line blob of many
+            # concatenated <a> tags plus multi-line <div> tags — was being
+            # mis-parsed as a code block and dumped out as literal tag text
+            # instead of being rendered (that's the raw-HTML error screenshot).
+            # components.html skips the markdown parser entirely and always
+            # renders real elements; real <a target="_blank"> anchors (unlike
+            # JS window.open() calls) work fine inside a sandboxed iframe.
+            components.html(html, height=height + 90, scrolling=False)
+
+        if selected_symbol_col in dash_df.columns:
+            symbol_series = dash_df[selected_symbol_col].astype(str)
+        elif "_raw_symbol_" in dash_df.columns:
+            symbol_series = dash_df["_raw_symbol_"].astype(str)
+        else:
+            symbol_series = dash_df.index.astype(str).to_series(index=dash_df.index)
+
+        # `selected_symbol_col` (the Symbol column shown in the main table) gets
+        # rewritten elsewhere in the app (process_hyperlinks) into full HTML anchor
+        # tags like <a href="...">IRFC</a> so the table's Symbol cells are clickable.
+        # That HTML string is NOT what we want feeding into the NSE chart URL. The
+        # `_raw_symbol_` column is guaranteed to still hold the plain ticker text,
+        # so the two clickable dot-scatter charts below always use THIS instead of
+        # symbol_series.
+        if "_raw_symbol_" in dash_df.columns:
+            clean_symbol_series = dash_df["_raw_symbol_"].astype(str).str.strip()
+        else:
+            clean_symbol_series = symbol_series.astype(str).str.replace(r"<[^>]+>", "", regex=True).str.strip()
+
+        def _render_clickable_dot_scatter(fig, chart_key):
+            """
+            Renders a fully native Plotly chart — every modebar button (zoom, pan,
+            box/lasso select, autoscale, reset axes, camera/PNG download, fullscreen)
+            stays exactly as Plotly ships it; nothing is stripped.
+
+            Dots aren't real <a> hyperlinks (Plotly can't render its markers as
+            anchor tags), so clicking a dot uses Streamlit's native on_select click
+            event to detect which stock was clicked, then shows:
+              - a real st.link_button (actual <a target="_blank">) to open that
+                stock's NSE chart in a new tab, and
+              - a "More links for {symbol}" row with the same 7 quick-links
+                (Trading View / History Data / Screener / Zerodha / Chartlink /
+                Market Smith / NSE URL) already used elsewhere in this app's
+                Selection Workspace panel, so the exact same destinations are one
+                click away right under the chart too.
+
+            NOTE: needs Streamlit >= 1.35 (on_select click-event API). Falls back
+            to a plain chart + note on older versions.
+            """
+            fig.update_layout(clickmode="event+select")
+            try:
+                event = st.plotly_chart(fig, use_container_width=True, key=chart_key, on_select="rerun")
+            except TypeError:
+                st.plotly_chart(fig, use_container_width=True, key=chart_key)
+                st.caption("⚠️ Click-to-open needs Streamlit ≥ 1.35 — update `streamlit` in requirements.txt to enable it.")
+                return
+
+            clicked_symbol = None
+            sel = event.get("selection") if isinstance(event, dict) else getattr(event, "selection", None)
+            if sel:
+                pts = sel.get("points") if isinstance(sel, dict) else getattr(sel, "points", None)
+                if pts:
+                    last_pt = pts[-1]
+                    cd = last_pt.get("customdata") if isinstance(last_pt, dict) else getattr(last_pt, "customdata", None)
+                    if cd:
+                        clicked_symbol = cd[0] if isinstance(cd, (list, tuple)) else cd
+
+            if clicked_symbol:
+                nse_chart_url = f"https://charting.nseindia.com/?symbol={clicked_symbol}-EQ"
+                cl1, cl2 = st.columns([3, 1])
+                with cl1:
+                    st.success(f"Selected: **{clicked_symbol}**")
+                with cl2:
+                    st.link_button("📈 Open on NSE", nse_chart_url, use_container_width=True)
+
+                st.markdown(
+                    f"🔗 **More links for {clicked_symbol}:** "
+                    f"[Trading View (🔗)](https://www.tradingview.com/symbols/{clicked_symbol}/) &nbsp;|&nbsp; "
+                    f"[History Data (🔗)](https://www.equitypandit.com/historical-data/{clicked_symbol}) &nbsp;|&nbsp; "
+                    f"[Screener (🔗)](https://www.screener.in/company/{clicked_symbol}) &nbsp;|&nbsp; "
+                    f"[Zerodha (🔗)](https://zerodha.com/markets/stocks/NSE/{clicked_symbol}) &nbsp;|&nbsp; "
+                    f"[Chartlink (🔗)](https://chartink.com/stocks-new?load-snapshot=exponential-moving-average-simple-moving-average-simple-moving-average-moving-average-convergence-divergence-chart-snapshot-175&symbol={clicked_symbol}) &nbsp;|&nbsp; "
+                    f"[Market Smith (🔗)](https://marketsmithindia.com/mstool/eval/{clicked_symbol}/evaluation.jsp) &nbsp;|&nbsp; "
+                    f"[NSE URL (🔗)](https://www.nseindia.com/get-quotes/equity?symbol={clicked_symbol})"
+                )
+            else:
+                st.caption("Click any dot above to select a stock — its NSE chart button and quick-links will appear here.")
+
+        # ---------- Chart row 3: Top 30 nearest 52W High / nearest 52W Low ----------
+        def _render_top30_market_lists(key_prefix):
+            """Renders the Top 30 Nearest 52W High / Nearest 52W Low and the
+            Top 30 Below 200 DMA / Above 200 DMA bar charts. Reused both in the
+            Executive Dashboard and inside the Company Price Dashboard expander,
+            using the same universe-level series computed above (cmp_series,
+            high_series, low_series, diff200_series, symbol_series)."""
+            r1c1, r1c2 = st.columns(2)
+
+            with r1c1:
+                if cmp_series.notna().any() and high_series.notna().any():
+                    pct_from_high = ((high_series - cmp_series) / high_series.replace(0, np.nan) * 100)
+                    near_high_idx = pct_from_high.dropna().sort_values(ascending=True).head(30).index
+                    near_h = pd.DataFrame({
+                        "Symbol": symbol_series.loc[near_high_idx].values,
+                        "% Below 52W High": pct_from_high.loc[near_high_idx].values
+                    }).iloc[::-1]
+                    fig_nh = go.Figure(go.Bar(x=near_h["% Below 52W High"], y=near_h["Symbol"], orientation='h', marker_color="#0f9d58"))
+                    fig_nh.update_layout(title="🏔️ Top 30 Nearest 52W High", template="plotly_white", height=780, margin=dict(t=40, b=10, l=10, r=10))
+                    st.plotly_chart(fig_nh, use_container_width=True, key=f"{key_prefix}_nearhigh_{selected_sheet}", config=DASH_CHART_CONFIG)
+                else:
+                    st.info("52-Week High column not detected for this sheet.")
+
+            with r1c2:
+                if cmp_series.notna().any() and low_series.notna().any():
+                    pct_from_low = ((cmp_series - low_series) / low_series.replace(0, np.nan) * 100)
+                    near_low_idx = pct_from_low.dropna().sort_values(ascending=True).head(30).index
+                    near_l = pd.DataFrame({
+                        "Symbol": symbol_series.loc[near_low_idx].values,
+                        "% Above 52W Low": pct_from_low.loc[near_low_idx].values
+                    }).iloc[::-1]
+                    fig_nl = go.Figure(go.Bar(x=near_l["% Above 52W Low"], y=near_l["Symbol"], orientation='h', marker_color="#ea4335"))
+                    fig_nl.update_layout(title="🕳️ Top 30 Nearest 52W Low", template="plotly_white", height=780, margin=dict(t=40, b=10, l=10, r=10))
+                    st.plotly_chart(fig_nl, use_container_width=True, key=f"{key_prefix}_nearlow_{selected_sheet}", config=DASH_CHART_CONFIG)
+                else:
+                    st.info("52-Week Low column not detected for this sheet.")
+
+            r2c1, r2c2 = st.columns(2)
+
+            with r2c1:
+                if diff200_series.notna().any():
+                    below_idx = diff200_series[diff200_series < 0].dropna().sort_values(ascending=True).head(30).index
+                    below_d = pd.DataFrame({
+                        "Symbol": symbol_series.loc[below_idx].values,
+                        "% Diff from 200 DMA": diff200_series.loc[below_idx].values
+                    }).iloc[::-1]
+                    if not below_d.empty:
+                        fig_below200 = go.Figure(go.Bar(x=below_d["% Diff from 200 DMA"], y=below_d["Symbol"], orientation='h', marker_color="#ea4335"))
+                        fig_below200.update_layout(title="📉 Top 30 Below 200 DMA", template="plotly_white", height=780, margin=dict(t=40, b=10, l=10, r=10))
+                        st.plotly_chart(fig_below200, use_container_width=True, key=f"{key_prefix}_below200_{selected_sheet}", config=DASH_CHART_CONFIG)
+                    else:
+                        st.info("No stocks currently below 200 DMA.")
+                else:
+                    st.info("Difference from 200 DMA column not detected for this sheet.")
+
+            with r2c2:
+                if diff200_series.notna().any():
+                    above_idx = diff200_series[diff200_series > 0].dropna().sort_values(ascending=False).head(30).index
+                    above_d = pd.DataFrame({
+                        "Symbol": symbol_series.loc[above_idx].values,
+                        "% Diff from 200 DMA": diff200_series.loc[above_idx].values
+                    }).iloc[::-1]
+                    if not above_d.empty:
+                        fig_above200 = go.Figure(go.Bar(x=above_d["% Diff from 200 DMA"], y=above_d["Symbol"], orientation='h', marker_color="#0f9d58"))
+                        fig_above200.update_layout(title="🎯 Top 30 Above 200 DMA", template="plotly_white", height=780, margin=dict(t=40, b=10, l=10, r=10))
+                        st.plotly_chart(fig_above200, use_container_width=True, key=f"{key_prefix}_above200_{selected_sheet}", config=DASH_CHART_CONFIG)
+                    else:
+                        st.info("No stocks currently above 200 DMA.")
+                else:
+                    st.info("Difference from 200 DMA column not detected for this sheet.")
+
+        _render_top30_market_lists("dash")
+
+        # ---------- Chart row 4: 52-week range positioning + Difference from 200 DMA positioning (both clickable → NSE chart + quick-links) ----------
+        dash_c7, dash_c8 = st.columns(2)
+
+        with dash_c7:
+            if cmp_series.notna().any() and high_series.notna().any() and low_series.notna().any():
+                span = (high_series - low_series).replace(0, np.nan)
+                pos_in_range = ((cmp_series - low_series) / span * 100).clip(0, 100)
+                valid_mask = pos_in_range.notna() & clean_symbol_series.notna()
+                syms_v = clean_symbol_series[valid_mask].str.strip().values
+                vals_v = pos_in_range[valid_mask].values
+                fig_range = go.Figure(go.Scatter(
+                    x=syms_v, y=vals_v, mode="markers",
+                    marker=dict(
+                        size=9, color=vals_v,
+                        colorscale=[[0, "#ea4335"], [0.5, "#f9a825"], [1, "#0f9d58"]],
+                        cmin=0, cmax=100,
+                        showscale=True, colorbar=dict(title="% of Range")
+                    ),
+                    customdata=syms_v,
+                    hovertemplate="%{customdata}: %{y:.2f}%<extra></extra>",
+                ))
+                fig_range.update_layout(
+                    title="📍 Position within 52-Week Range (0% = Low, 100% = High)",
+                    template="plotly_white", height=340, margin=dict(t=40, b=10, l=10, r=10),
+                    xaxis=dict(showticklabels=False, title="Stocks"), yaxis_title="% of 52W Range"
+                )
+                _render_clickable_dot_scatter(fig_range, f"dash_range_{selected_sheet}")
+            else:
+                st.info("52-Week High/Low columns not detected for this sheet.")
+
+        with dash_c8:
+            if diff200_series.notna().any() and clean_symbol_series is not None:
+                valid_mask2 = diff200_series.notna() & clean_symbol_series.notna()
+                syms_v2 = clean_symbol_series[valid_mask2].str.strip().values
+                diff_vals = diff200_series[valid_mask2].values
+                d_absmax = max(abs(float(np.nanmin(diff_vals))), abs(float(np.nanmax(diff_vals))), 1e-9)
+                fig_diff200 = go.Figure(go.Scatter(
+                    x=syms_v2, y=diff_vals, mode="markers",
+                    marker=dict(
+                        size=9, color=diff_vals,
+                        colorscale=[[0, "#ea4335"], [0.5, "#f9a825"], [1, "#0f9d58"]],
+                        cmin=-d_absmax, cmax=d_absmax,
+                        showscale=True, colorbar=dict(title="% Diff")
+                    ),
+                    customdata=syms_v2,
+                    hovertemplate="%{customdata}: %{y:.2f}%<extra></extra>",
+                ))
+                fig_diff200.update_layout(
+                    title="📐 Difference from 200 DMA (0% = at 200 DMA)",
+                    template="plotly_white", height=340, margin=dict(t=40, b=10, l=10, r=10),
+                    xaxis=dict(showticklabels=False, title="Stocks"), yaxis_title="% Diff from 200 DMA"
+                )
+                _render_clickable_dot_scatter(fig_diff200, f"dash_diff200_{selected_sheet}")
+            else:
+                st.info("Difference from 200 DMA column not detected for this sheet.")
+
     # ==========================================
     # 📌 TOP UI: ROWS COUNT, COLUMN WIDTH ADJUSTER & EXCEL DOWNLOAD
     # ==========================================
@@ -1816,6 +2210,7 @@ if not raw_df.empty:
             box_height = st.slider("📏 Adjust Panel Box Height (px):", min_value=300, max_value=1000, value=500, step=50, key="panel_height_slider")
 
             ws_tabs = st.tabs([
+                "🕯️ Price Chart (EMA + RSI)",
                 "📈 Chart & Trade Info (NSE Component)", "📋 History Data (EquityPandit)",
                 "🎯 Bullish/Bearish Zone", "📁 Screener Documents",
                 "🪁 Zerodha Portal", "📊 MarketSmith India", "📉 TradingView Symbol Profile",
@@ -1824,49 +2219,49 @@ if not raw_df.empty:
                 "🎯 GTT Order Calculator", "📊 Watchlist Manager", "📰 News Feed"
             ])
 
-            with ws_tabs[0]:
+            with ws_tabs[1]:
                 _url0 = f"https://charting.nseindia.com/?symbol={sym}-EQ"
                 st.markdown(f"**NSE Interactive Chart Frame** &nbsp;|&nbsp; [🌐 Open in Browser]({_url0})", unsafe_allow_html=False)
                 st.caption("📱 If frame is blank on mobile, tap the link above to open directly.")
                 components.html(f'<iframe src="{_url0}" width="100%" height="{box_height}" style="border:none; border-radius:5px;"></iframe>', height=box_height+20)
 
-            with ws_tabs[1]:
+            with ws_tabs[2]:
                 _url1 = f"https://www.equitypandit.com/historical-data/{sym.lower()}"
                 st.markdown(f"**EquityPandit Historical Matrix Data** &nbsp;|&nbsp; [🌐 Open in Browser]({_url1})")
                 st.caption("📱 If frame is blank on mobile, tap the link above to open directly.")
                 components.html(f'<iframe src="{_url1}" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
 
-            with ws_tabs[2]:
+            with ws_tabs[3]:
                 _url2 = f"https://www.equitypandit.com/share-price/{sym.lower()}#chart"
                 st.markdown(f"**Bullish / Bearish Zone Indicator** &nbsp;|&nbsp; [🌐 Open in Browser]({_url2})")
                 st.caption("📱 If frame is blank on mobile, tap the link above to open directly.")
                 components.html(f'<iframe src="{_url2}" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
 
-            with ws_tabs[3]:
+            with ws_tabs[4]:
                 _url3 = f"https://www.screener.in/company/{sym}/consolidated/"
                 st.markdown(f"**Screener Corporate Filings** &nbsp;|&nbsp; [🌐 Open in Browser]({_url3})")
                 st.caption("📱 If frame is blank on mobile, tap the link above to open directly.")
                 components.html(f'<iframe src="{_url3}" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
 
-            with ws_tabs[4]:
+            with ws_tabs[5]:
                 _url4 = f"https://zerodha.com/markets/stocks/NSE/{sym}/"
                 st.markdown(f"**Zerodha Markets Financial Performance Metrics** &nbsp;|&nbsp; [🌐 Open in Browser]({_url4})")
                 st.caption("📱 If frame is blank on mobile, tap the link above to open directly.")
                 components.html(f'<iframe src="{_url4}" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
 
-            with ws_tabs[5]:
+            with ws_tabs[6]:
                 _url5 = f"https://marketsmithindia.com/mstool/eval/{sym.lower()}/evaluation.jsp"
                 st.markdown(f"**MarketSmith India Institutional Trading Evaluation Engine** &nbsp;|&nbsp; [🌐 Open in Browser]({_url5})")
                 st.caption("📱 If frame is blank on mobile, tap the link above to open directly.")
                 components.html(f'<iframe src="{_url5}" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
 
-            with ws_tabs[6]:
+            with ws_tabs[7]:
                 _url6 = f"https://www.tradingview.com/symbols/{sym}/"
                 st.markdown(f"**TradingView Comprehensive Asset Market Registry Summary Profile** &nbsp;|&nbsp; [🌐 Open in Browser]({_url6})")
                 st.caption("📱 If frame is blank on mobile, tap the link above to open directly.")
                 components.html(f'<iframe src="{_url6}" width="100%" height="{box_height}" style="border:none; border-radius:5px; background-color:white;"></iframe>', height=box_height+20)
 
-            with ws_tabs[7]:
+            with ws_tabs[8]:
                 st.markdown(f"### 🤖 Ask AI About **{sym}**")
 
                 if not ai_enabled:
@@ -1971,7 +2366,7 @@ Please provide a clear, concise, and professional response.
                     )
                     st.text(prompt_lines)
 
-            with ws_tabs[8]:
+            with ws_tabs[9]:
                 st.markdown(f"### 💻 AI Pine Script Generator for **{sym}**")
 
                 if not ai_enabled:
@@ -1981,7 +2376,7 @@ Please provide a clear, concise, and professional response.
                     st.write("Generate a custom TradingView Pine Script v5 strategy tailored to this stock's current metrics.")
 
                     strategy_focus = st.selectbox("Select Strategy Focus:", [
-                        "Turnover Breakout with Dynamic Stop Loss",
+                        "Volume Breakout with Dynamic Stop Loss",
                         "Moving Average Crossover (50/100/200 DMA)",
                         "Trend Following with Trailing Stop",
                         "Mean Reversion from 52W High/Low"
@@ -2475,34 +2870,9 @@ Be specific, data-driven, and actionable for a retail investor.
     st.markdown("---")
     st.subheader("📊 National Live Market Analytics Portal Framework")
 
-    st.markdown("""
-    <style>
-        div[data-baseweb="tab-list"] {
-            flex-wrap: wrap !important;
-            row-gap: 3px !important;
-            column-gap: 8px !important;
-        }
-        div[data-baseweb="tab-list"] button {
-            margin-top: 1px !important;
-            margin-bottom: 1px !important;
-            padding-top: 6px !important;
-            padding-bottom: 6px !important;
-            height: auto !important;
-        }
-        div[data-baseweb="tab-highlight"] {
-            display: none !important;
-        }
-        div[data-baseweb="tab"][aria-selected="true"] {
-            background-color: rgba(31, 119, 180, 0.1) !important;
-            border-radius: 5px !important;
-            border-bottom: 2px solid #1f77b4 !important;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
     mkt_tabs = st.tabs([
-        "🔥 Most Active", "🚀 Turnover Gainers", "🏆 Top Gainers/Losers", "⭐ 52W Boundaries", "📦 Stocks Traded", "⚖️ Advances/Declines",
-        "🕒 Pre-Open Market", "⚡ Price Band Hitters", "🗺️ Index Ticker Heatmap", "🎫 IPO Tracker", "⚠️ Turnover Shockers",
+        "🔥 Most Active", "🚀 Volume Gainers", "🏆 Top Gainers/Losers", "⭐ 52W Boundaries", "📦 Stocks Traded", "⚖️ Advances/Declines",
+        "🕒 Pre-Open Market", "⚡ Price Band Hitters", "🗺️ Index Ticker Heatmap", "🎫 IPO Tracker", "⚠️ Volume Shockers",
         "📂 Document Reports", "🖋️ TV Script Engine", "🔮 MunafaSutra Tickers", "🎯 Dhan Asset Registry", "💎 Weekly Activity Metrics",
         "🔧 ScanX Core Screener", "🚦 ScanX Live Engine", "🎨 Screener Exploration", "📈 IPO Chittorgarh", "🏷️ IPO Watch Panel", "💓 NSE Pulse",
         "📊 Chartink Screeners", "📋 Chartink Dashboard", "🗾 Chartink Atlas", "📚 Mahesh Kaushik", "💰 EFTI Wealth",
@@ -2642,286 +3012,410 @@ Be specific, data-driven, and actionable for a retail investor.
         st.markdown(_portal_btn(_u), unsafe_allow_html=True)
         components.html(f'<iframe src="{_u}" width="100%" height="500" style="border:none;"></iframe>', height=520)
 
-    # ==========================================
-    # 🏆 MULTI-HORIZON PERFORMANCE SUMMARY MATRIX
-    # ==========================================
-    st.markdown("---")
-    st.markdown("### 📈 Multi-Horizon Performance Summary Matrix")
+    @st_fragment
+    def render_performance_matrix():
+        # ==========================================
+        # 🏆 MULTI-HORIZON PERFORMANCE SUMMARY MATRIX
+        # ==========================================
+        st.markdown("---")
+        st.markdown("### 📈 Multi-Horizon Performance Summary Matrix")
 
-    perf_width_col1, perf_width_col2 = st.columns([4, 1])
-    with perf_width_col1:
-        perf_sizing_mode = st.radio(
-            "📏 Column Width Adjustment:",
-            ["Default", "✅ Fit to Row 1", "✅✅ Fit to Row 2"],
-            horizontal=True,
-            help="Automatically adjust column widths based on text length of the selected row.",
-            key="perf_matrix_sizing_mode"
-        )
+        perf_width_col1, perf_width_col2 = st.columns([4, 1])
+        with perf_width_col1:
+            perf_sizing_mode = st.radio(
+                "📏 Column Width Adjustment:",
+                ["Default", "✅ Fit to Row 1", "✅✅ Fit to Row 2"],
+                horizontal=True,
+                help="Automatically adjust column widths based on text length of the selected row.",
+                key="perf_matrix_sizing_mode"
+            )
 
-    horizons = [
-        "1 Day", "2 Day", "3 Day", "5 Day", "7 Day", "10 Day", "12 Day", "15 Days", "20 Days", "25 Days", "30 Days",
-        "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months",
-        "1 Year", "18 Months", "1.5 Years", "2 Years", "2.5 Years", "3 Years", "Turnover"
-    ]
+        horizons = [
+            "1 Day", "2 Day", "3 Day", "5 Day", "7 Day", "10 Day", "12 Day", "15 Days", "20 Days", "25 Days", "30 Days",
+            "2 Months", "3 Months", "4 Months", "5 Months", "6 Months", "7 Months", "8 Months", "9 Months", "10 Months", "11 Months",
+            "1 Year", "18 Months", "1.5 Years", "2 Years", "2.5 Years", "3 Years", "Turnover"
+        ]
 
-    col_tools1, col_tools2, col_tools3 = st.columns([2, 2, 3])
-    with col_tools1:
-        sort_basis = st.selectbox("🎯 Base Horizon for Performance Ranking:", horizons, index=0)
-    with col_tools2:
-        sort_direction = st.radio("排序 Sorting Order Type:", ["Best -> Worst", "Worst -> Best"], index=0, horizontal=True)
-    with col_tools3:
-        summary_search = st.text_input("🔍 Filter stocks inside this matrix...", placeholder="Type symbol name...", key="perf_matrix_search")
+        col_tools1, col_tools2, col_tools3 = st.columns([2, 2, 3])
+        with col_tools1:
+            sort_basis = st.selectbox("🎯 Base Horizon for Performance Ranking:", horizons, index=0)
+        with col_tools2:
+            sort_direction = st.radio("排序 Sorting Order Type:", ["Best -> Worst", "Worst -> Best"], index=0, horizontal=True)
+        with col_tools3:
+            summary_search = st.text_input("🔍 Filter stocks inside this matrix...", placeholder="Type symbol name...", key="perf_matrix_search")
 
-    detected_metric_map = {}
+        detected_metric_map = {}
 
-    for h in horizons:
-        if h == "Turnover":
-            if turn_target: detected_metric_map[h] = turn_target
-            continue
-        keywords = [h.lower(), h.lower().replace(" ", ""), h.lower().replace("s", "")]
-        if h == "1 Day": keywords.append("price %")
-        for c in actual_cols:
-            if any(k in c.lower() for k in keywords) and "%" in c.lower():
-                detected_metric_map[h] = c
-                break
+        for h in horizons:
+            if h == "Turnover":
+                if turn_target: detected_metric_map[h] = turn_target
+                continue
+            keywords = [h.lower(), h.lower().replace(" ", ""), h.lower().replace("s", "")]
+            if h == "1 Day": keywords.append("price %")
+            for c in actual_cols:
+                if any(k in c.lower() for k in keywords) and "%" in c.lower():
+                    detected_metric_map[h] = c
+                    break
 
-    if detected_metric_map:
-        reporting_data = []
-        for idx, row in filtered_df.iterrows():
-            clean_ticker = str(row.get('_raw_symbol_', '')).strip()
-            price_val = row.get(cmp_target, "") if cmp_target else ""
+        if detected_metric_map:
+            reporting_data = []
+            for idx, row in filtered_df.iterrows():
+                clean_ticker = str(row.get('_raw_symbol_', '')).strip()
+                price_val = row.get(cmp_target, "") if cmp_target else ""
 
-            url = f"https://charting.nseindia.com/?symbol={clean_ticker}-EQ"
-            hyperlinked_name = f'<a href="{url}" target="_blank" style="text-decoration:none; color:#000000; font-weight:bold;">{clean_ticker}</a>'
+                url = f"https://charting.nseindia.com/?symbol={clean_ticker}-EQ"
+                hyperlinked_name = f'<a href="{url}" target="_blank" style="text-decoration:none; color:#000000; font-weight:bold;">{clean_ticker}</a>'
 
-            entry = {
-                "STOCK NAME": hyperlinked_name,
-                "CURRENT PRICE": price_val
+                entry = {
+                    "STOCK NAME": hyperlinked_name,
+                    "CURRENT PRICE": price_val
+                }
+
+                for h, actual_col in detected_metric_map.items():
+                    raw_val = str(row.get(actual_col, "0")).replace("%", "").replace(",", "").strip()
+                    try:
+                        entry[h] = float(raw_val) if raw_val not in ["", "nan", "None"] else 0.0
+                    except ValueError:
+                        entry[h] = 0.0
+
+                # ── NEW: % Delivery column ──────────────────
+                if deliv_target:
+                    raw_dval = str(row.get(deliv_target, "0")).replace("%", "").replace(",", "").strip()
+                    try:
+                        entry["% Delivery"] = float(raw_dval) if raw_dval not in ["", "nan", "None"] else 0.0
+                    except ValueError:
+                        entry["% Delivery"] = 0.0
+
+                # ── NEW: additional requested columns ──────────────────
+                if rsi_target:
+                    raw_rsi = str(row.get(rsi_target, "")).replace("%", "").replace(",", "").strip()
+                    try:
+                        entry["RSI (14)"] = float(raw_rsi) if raw_rsi not in ["", "nan", "None"] else None
+                    except ValueError:
+                        entry["RSI (14)"] = None
+
+                if diff_200_target:
+                    raw_diff200 = str(row.get(diff_200_target, "")).replace("%", "").replace(",", "").strip()
+                    try:
+                        entry["Diff. from 200 DMA"] = float(raw_diff200) if raw_diff200 not in ["", "nan", "None"] else None
+                    except ValueError:
+                        entry["Diff. from 200 DMA"] = None
+
+                if high_target:
+                    raw_52h = str(row.get(high_target, "")).replace(",", "").strip()
+                    try:
+                        entry["52W High"] = float(raw_52h) if raw_52h not in ["", "nan", "None"] else None
+                    except ValueError:
+                        entry["52W High"] = None
+
+                if low_target:
+                    raw_52l = str(row.get(low_target, "")).replace(",", "").strip()
+                    try:
+                        entry["52W Low"] = float(raw_52l) if raw_52l not in ["", "nan", "None"] else None
+                    except ValueError:
+                        entry["52W Low"] = None
+
+                if volume_trend_target:
+                    entry["Volume Trend"] = str(row.get(volume_trend_target, "")).strip()
+
+                if breakout_signal_target:
+                    entry["Breakout Signal"] = str(row.get(breakout_signal_target, "")).strip()
+
+                if trend_target:
+                    entry["Trend"] = str(row.get(trend_target, "")).strip()
+
+                if macd_crossover_target:
+                    entry["MACD Crossover"] = str(row.get(macd_crossover_target, "")).strip()
+
+                if buy_signal_target:
+                    entry["Buy Signal"] = str(row.get(buy_signal_target, "")).strip()
+
+                # ── NEW: Bottom Fishing Score column ──────────────────
+                clean_r = {k: v for k, v in row.items() if not str(k).startswith('_')}
+                bf_s, bf_g, _ = compute_bottom_fishing_score(clean_r, actual_cols)
+                entry["🔬 BF Score"] = bf_s
+                entry["📊 BF Grade"] = bf_g
+
+                reporting_data.append(entry)
+
+            perf_df = pd.DataFrame(reporting_data)
+
+            if summary_search:
+                perf_df = perf_df[perf_df["STOCK NAME"].str.replace(r'<[^>]*>', '', regex=True).str.contains(summary_search, case=False, na=False)]
+
+            target_sort_col = sort_basis if sort_basis in perf_df.columns else perf_df.columns[2]
+            ascending_flag = (sort_direction == "Worst -> Best")
+            perf_df = perf_df.sort_values(by=target_sort_col, ascending=ascending_flag).reset_index(drop=True)
+            perf_df.insert(0, "RANK", perf_df.index + 1)
+
+            display_perf_df = perf_df.copy()
+            for h in detected_metric_map.keys():
+                if h in display_perf_df.columns:
+                    if h == "Volume":
+                        display_perf_df[h] = display_perf_df[h].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "-")
+                    else:
+                        display_perf_df[h] = display_perf_df[h].apply(lambda x: f"+{x:.2f}%" if x > 0 else (f"{x:.2f}%" if x < 0 else "0.00%"))
+
+            if "% Delivery" in display_perf_df.columns:
+                display_perf_df["% Delivery"] = display_perf_df["% Delivery"].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else "-")
+
+            if "RSI (14)" in display_perf_df.columns:
+                display_perf_df["RSI (14)"] = display_perf_df["RSI (14)"].apply(lambda x: f"{x:.2f}" if pd.notnull(x) else "-")
+
+            if "Diff. from 200 DMA" in display_perf_df.columns:
+                display_perf_df["Diff. from 200 DMA"] = display_perf_df["Diff. from 200 DMA"].apply(
+                    lambda x: (f"+{x:.2f}%" if x > 0 else (f"{x:.2f}%" if x < 0 else "0.00%")) if pd.notnull(x) else "-"
+                )
+
+            if "52W High" in display_perf_df.columns:
+                display_perf_df["52W High"] = display_perf_df["52W High"].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "-")
+
+            if "52W Low" in display_perf_df.columns:
+                display_perf_df["52W Low"] = display_perf_df["52W Low"].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "-")
+
+            perf_gb = GridOptionsBuilder.from_dataframe(display_perf_df)
+            perf_gb.configure_default_column(filter=True, sortable=True, resizable=True, floatingFilter=False, flex=0)
+            perf_gb.configure_column("RANK", width=70, pinned="left")
+            perf_gb.configure_column("STOCK NAME", width=140, pinned="left", cellRenderer=html_renderer)
+
+            color_code_js = JsCode("""
+            function(params) {
+                if (params.value === undefined || params.value === null || params.colDef.field === "Volume") return null;
+                let val = parseFloat(String(params.value).replace(/[+%,]/g, ''));
+                if (val > 0) return { 'color': '#000000', 'backgroundColor': '#e6f4ea', 'fontWeight': 'bold' };
+                if (val < 0) return { 'color': '#000000', 'backgroundColor': '#fce8e6', 'fontWeight': 'bold' };
+                return null;
             }
+            """)
 
-            for h, actual_col in detected_metric_map.items():
-                raw_val = str(row.get(actual_col, "0")).replace("%", "").replace(",", "").strip()
-                try:
-                    entry[h] = float(raw_val) if raw_val not in ["", "nan", "None"] else 0.0
-                except ValueError:
-                    entry[h] = 0.0
+            bf_score_js = JsCode("""
+            function(params) {
+                let val = parseFloat(params.value);
+                if (val >= 75) return { 'backgroundColor': '#16e37f33', 'color': '#000', 'fontWeight': 'bold' };
+                if (val >= 55) return { 'backgroundColor': '#f4b40033', 'color': '#000', 'fontWeight': 'bold' };
+                if (val >= 35) return { 'backgroundColor': '#ff990033', 'color': '#000' };
+                return { 'backgroundColor': '#ea433533', 'color': '#000' };
+            }
+            """)
 
-            # ── NEW: % Delivery column ──────────────────
-            if deliv_target:
-                raw_dval = str(row.get(deliv_target, "0")).replace("%", "").replace(",", "").strip()
-                try:
-                    entry["% Delivery"] = float(raw_dval) if raw_dval not in ["", "nan", "None"] else 0.0
-                except ValueError:
-                    entry["% Delivery"] = 0.0
+            bf_grade_js = JsCode("""
+            function(params) {
+                let v = String(params.value);
+                if (v.includes('STRONG BUY')) return { 'backgroundColor': '#16e37f44', 'fontWeight': 'bold' };
+                if (v.includes('WATCHLIST')) return { 'backgroundColor': '#f4b40044', 'fontWeight': 'bold' };
+                if (v.includes('CAUTION')) return { 'backgroundColor': '#ff990044' };
+                return { 'backgroundColor': '#ea433544' };
+            }
+            """)
 
-            # ── NEW: Bottom Fishing Score column ──────────────────
-            clean_r = {k: v for k, v in row.items() if not str(k).startswith('_')}
-            bf_s, bf_g, _ = compute_bottom_fishing_score(clean_r, actual_cols)
-            entry["🔬 BF Score"] = bf_s
-            entry["📊 BF Grade"] = bf_g
+            trend_style_js = JsCode("""
+            function(params) {
+                let v = String(params.value).toLowerCase();
+                if (v.includes('strong uptrend') || v.includes('bullish') || v.includes('strong buy')) return { 'backgroundColor': '#16e37f33', 'color': '#000', 'fontWeight': 'bold' };
+                if (v.includes('uptrend') || v.includes('buy') || v.includes('high') || v.includes('yes')) return { 'backgroundColor': '#a5d6a733', 'color': '#000' };
+                if (v.includes('sideways') || v.includes('watch') || v.includes('normal')) return { 'backgroundColor': '#f4b40033', 'color': '#000' };
+                if (v.includes('bearish') || v.includes('avoid') || v.includes('low') || v.includes('downtrend')) return { 'backgroundColor': '#ea433533', 'color': '#000' };
+                return null;
+            }
+            """)
 
-            reporting_data.append(entry)
-
-        perf_df = pd.DataFrame(reporting_data)
-
-        if summary_search:
-            perf_df = perf_df[perf_df["STOCK NAME"].str.replace(r'<[^>]*>', '', regex=True).str.contains(summary_search, case=False, na=False)]
-
-        target_sort_col = sort_basis if sort_basis in perf_df.columns else perf_df.columns[2]
-        ascending_flag = (sort_direction == "Worst -> Best")
-        perf_df = perf_df.sort_values(by=target_sort_col, ascending=ascending_flag).reset_index(drop=True)
-        perf_df.insert(0, "RANK", perf_df.index + 1)
-
-        display_perf_df = perf_df.copy()
-        for h in detected_metric_map.keys():
-            if h in display_perf_df.columns:
-                if h == "Turnover":
-                    display_perf_df[h] = display_perf_df[h].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "-")
+            for col in display_perf_df.columns:
+                if col in ("RANK",):
+                    continue  # already configured above
+                if perf_sizing_mode == "✅ Fit to Row 1" and len(display_perf_df) > 0:
+                    char_count = get_clean_text_length(display_perf_df.iloc[0][col])
+                    header_count = len(str(col))
+                    dyn_width = int(max(char_count, header_count) * 7 + 22)
+                elif perf_sizing_mode == "✅✅ Fit to Row 2" and len(display_perf_df) > 1:
+                    char_count = get_clean_text_length(display_perf_df.iloc[1][col])
+                    header_count = len(str(col))
+                    dyn_width = int(max(char_count, header_count) * 7 + 22)
                 else:
-                    display_perf_df[h] = display_perf_df[h].apply(lambda x: f"+{x:.2f}%" if x > 0 else (f"{x:.2f}%" if x < 0 else "0.00%"))
+                    # Default fixed widths
+                    default_widths = {
+                        "STOCK NAME": 140, "CURRENT PRICE": 130, "% Delivery": 110, "🔬 BF Score": 110, "📊 BF Grade": 160,
+                        "RSI (14)": 100, "Diff. from 200 DMA": 140, "52W High": 110, "52W Low": 110,
+                        "Volume Trend": 120, "Breakout Signal": 130, "Trend": 130, "MACD Crossover": 130, "Buy Signal": 130,
+                    }
+                    dyn_width = default_widths.get(col, 130)
 
-        if "% Delivery" in display_perf_df.columns:
-            display_perf_df["% Delivery"] = display_perf_df["% Delivery"].apply(lambda x: f"{x:.2f}%" if pd.notnull(x) else "-")
+                min_w = max(70, min(dyn_width, 90))
 
-        perf_gb = GridOptionsBuilder.from_dataframe(display_perf_df)
-        perf_gb.configure_column("RANK", width=70, pinned="left")
-        perf_gb.configure_column("STOCK NAME", width=140, pinned="left", cellRenderer=html_renderer)
+                if col == "STOCK NAME":
+                    perf_gb.configure_column(col, width=dyn_width, minWidth=min_w, pinned="left", cellRenderer=html_renderer)
+                elif col == "CURRENT PRICE":
+                    perf_gb.configure_column(col, width=dyn_width, minWidth=min_w)
+                elif col == "🔬 BF Score":
+                    perf_gb.configure_column(col, width=dyn_width, minWidth=min_w, cellStyle=bf_score_js)
+                elif col == "📊 BF Grade":
+                    perf_gb.configure_column(col, width=dyn_width, minWidth=min_w, cellStyle=bf_grade_js)
+                elif col in ("Volume Trend", "Breakout Signal", "Trend", "MACD Crossover", "Buy Signal"):
+                    perf_gb.configure_column(col, width=dyn_width, minWidth=min_w, cellStyle=trend_style_js)
+                elif col in detected_metric_map or col == "Diff. from 200 DMA":
+                    perf_gb.configure_column(col, width=dyn_width, minWidth=min_w, cellStyle=color_code_js)
+                else:
+                    perf_gb.configure_column(col, width=dyn_width, minWidth=min_w)
 
-        color_code_js = JsCode("""
-        function(params) {
-            if (params.value === undefined || params.value === null || params.colDef.field === "Turnover") return null;
-            let val = parseFloat(String(params.value).replace(/[+%,]/g, ''));
-            if (val > 0) return { 'color': '#000000', 'backgroundColor': '#e6f4ea', 'fontWeight': 'bold' };
-            if (val < 0) return { 'color': '#000000', 'backgroundColor': '#fce8e6', 'fontWeight': 'bold' };
-            return null;
-        }
-        """)
+            perf_gb.configure_grid_options(domLayout="normal", rowHeight=38, headerHeight=45, enableCellTextSelection=True, alwaysShowHorizontalScroll=True, suppressColumnVirtualisation=True)
+            perf_grid_ops = perf_gb.build()
 
-        bf_score_js = JsCode("""
-        function(params) {
-            let val = parseFloat(params.value);
-            if (val >= 75) return { 'backgroundColor': '#16e37f33', 'color': '#000', 'fontWeight': 'bold' };
-            if (val >= 55) return { 'backgroundColor': '#f4b40033', 'color': '#000', 'fontWeight': 'bold' };
-            if (val >= 35) return { 'backgroundColor': '#ff990033', 'color': '#000' };
-            return { 'backgroundColor': '#ea433533', 'color': '#000' };
-        }
-        """)
+            AgGrid(display_perf_df, gridOptions=perf_grid_ops, theme="streamlit", allow_unsafe_jscode=True, fit_columns_on_grid_load=False, height=450, width='100%', key="horizon_perf_grid")
 
-        bf_grade_js = JsCode("""
-        function(params) {
-            let v = String(params.value);
-            if (v.includes('STRONG BUY')) return { 'backgroundColor': '#16e37f44', 'fontWeight': 'bold' };
-            if (v.includes('WATCHLIST')) return { 'backgroundColor': '#f4b40044', 'fontWeight': 'bold' };
-            if (v.includes('CAUTION')) return { 'backgroundColor': '#ff990044' };
-            return { 'backgroundColor': '#ea433544' };
-        }
-        """)
+    render_performance_matrix()
 
-        for col in display_perf_df.columns:
-            if col in ("RANK",):
-                continue  # already configured above
-            if perf_sizing_mode == "✅ Fit to Row 1" and len(display_perf_df) > 0:
-                char_count = get_clean_text_length(display_perf_df.iloc[0][col])
-                header_count = len(str(col))
-                dyn_width = int(max(char_count, header_count) * 7 + 22)
-            elif perf_sizing_mode == "✅✅ Fit to Row 2" and len(display_perf_df) > 1:
-                char_count = get_clean_text_length(display_perf_df.iloc[1][col])
-                header_count = len(str(col))
-                dyn_width = int(max(char_count, header_count) * 7 + 22)
-            else:
-                # Default fixed widths
-                default_widths = {"STOCK NAME": 140, "CURRENT PRICE": 130, "% Delivery": 110, "🔬 BF Score": 110, "📊 BF Grade": 160}
-                dyn_width = default_widths.get(col, 130)
+    @st_fragment
+    def render_bottom_fishing_scanner():
+        # ==========================================
+        # 🔬 STANDALONE BOTTOM FISHING SCANNER
+        # ==========================================
+        st.markdown("---")
+        st.markdown("### 🔬 Bottom Fishing Scanner — Buy from Bottom Candidates")
+        st.caption("Stocks that are 8–15% above 52W Low, in uptrend, with high volume + strong fundamentals")
 
-            if col == "STOCK NAME":
-                perf_gb.configure_column(col, width=dyn_width, pinned="left", cellRenderer=html_renderer)
-            elif col == "CURRENT PRICE":
-                perf_gb.configure_column(col, width=dyn_width)
-            elif col == "🔬 BF Score":
-                perf_gb.configure_column(col, width=dyn_width, cellStyle=bf_score_js)
-            elif col == "📊 BF Grade":
-                perf_gb.configure_column(col, width=dyn_width, cellStyle=bf_grade_js)
-            elif col in detected_metric_map:
-                perf_gb.configure_column(col, width=dyn_width, cellStyle=color_code_js)
-            else:
-                perf_gb.configure_column(col, width=dyn_width)
+        bf_width_col1, bf_width_col2 = st.columns([4, 1])
+        with bf_width_col1:
+            bf_sizing_mode = st.radio(
+                "📏 Column Width Adjustment:",
+                ["Default", "✅ Fit to Row 1", "✅✅ Fit to Row 2"],
+                horizontal=True,
+                help="Automatically adjust column widths based on text length of the selected row.",
+                key="bf_scanner_sizing_mode"
+            )
 
-        perf_gb.configure_grid_options(domLayout="normal", rowHeight=38, headerHeight=45, enableCellTextSelection=True)
-        perf_grid_ops = perf_gb.build()
+        bf_col1, bf_col2, bf_col3 = st.columns([2, 2, 2])
+        with bf_col1:
+            min_bf_score = st.slider("Minimum BF Score:", min_value=0, max_value=100, value=55, step=5, key="bf_min_score")
+        with bf_col2:
+            bf_sort = st.radio("Sort by:", ["Score (High→Low)", "Score (Low→High)"], horizontal=True, key="bf_sort")
+        with bf_col3:
+            bf_search = st.text_input("Search symbol:", placeholder="e.g. WIPRO", key="bf_search")
 
-        AgGrid(display_perf_df, gridOptions=perf_grid_ops, theme="streamlit", allow_unsafe_jscode=True, fit_columns_on_grid_load=False, height=450, width='100%', key="horizon_perf_grid")
+        bf_results = []
+        for idx, row in filtered_df.iterrows():
+            clean_r = {k: v for k, v in row.items() if not str(k).startswith('_')}
+            bf_s, bf_g, bf_rsns = compute_bottom_fishing_score(clean_r, actual_cols)
+            if bf_s >= min_bf_score:
+                ticker = str(row.get('_raw_symbol_', '')).strip()
+                cmp_v = clean_r.get(cmp_target, "") if cmp_target else ""
+                sector_col = next((c for c in actual_cols if "sector" in c.lower()), None)
+                sector_v = clean_r.get(sector_col, "") if sector_col else ""
+                nse_chart_url = f"https://charting.nseindia.com/?symbol={ticker}-EQ"
+                symbol_link = f'<a href="{nse_chart_url}" target="_blank" style="text-decoration:none; color:#000000; font-weight:bold;">{ticker}</a>'
 
-    # ==========================================
-    # 🔬 STANDALONE BOTTOM FISHING SCANNER
-    # ==========================================
-    st.markdown("---")
-    st.markdown("### 🔬 Bottom Fishing Scanner — Buy from Bottom Candidates")
-    st.caption("Stocks that are 8–15% above 52W Low, in uptrend, with high turnover + strong fundamentals")
+                deliv_v = None
+                if deliv_target:
+                    raw_dv = str(clean_r.get(deliv_target, "")).replace("%", "").replace(",", "").strip()
+                    try:
+                        deliv_v = float(raw_dv) if raw_dv not in ["", "nan", "None"] else None
+                    except ValueError:
+                        deliv_v = None
 
-    bf_width_col1, bf_width_col2 = st.columns([4, 1])
-    with bf_width_col1:
-        bf_sizing_mode = st.radio(
-            "📏 Column Width Adjustment:",
-            ["Default", "✅ Fit to Row 1", "✅✅ Fit to Row 2"],
-            horizontal=True,
-            help="Automatically adjust column widths based on text length of the selected row.",
-            key="bf_scanner_sizing_mode"
-        )
+                rsi_v = str(clean_r.get(rsi_target, "")).strip() if rsi_target else "-"
+                diff200_v = str(clean_r.get(diff_200_target, "")).strip() if diff_200_target else "-"
+                high52_v = str(clean_r.get(high_target, "")).strip() if high_target else "-"
+                low52_v = str(clean_r.get(low_target, "")).strip() if low_target else "-"
+                vol_trend_v = str(clean_r.get(volume_trend_target, "")).strip() if volume_trend_target else "-"
+                breakout_v = str(clean_r.get(breakout_signal_target, "")).strip() if breakout_signal_target else "-"
+                trend_v = str(clean_r.get(trend_target, "")).strip() if trend_target else "-"
+                macd_v = str(clean_r.get(macd_crossover_target, "")).strip() if macd_crossover_target else "-"
+                buy_sig_v = str(clean_r.get(buy_signal_target, "")).strip() if buy_signal_target else "-"
 
-    bf_col1, bf_col2, bf_col3 = st.columns([2, 2, 2])
-    with bf_col1:
-        min_bf_score = st.slider("Minimum BF Score:", min_value=0, max_value=100, value=55, step=5, key="bf_min_score")
-    with bf_col2:
-        bf_sort = st.radio("Sort by:", ["Score (High→Low)", "Score (Low→High)"], horizontal=True, key="bf_sort")
-    with bf_col3:
-        bf_search = st.text_input("Search symbol:", placeholder="e.g. WIPRO", key="bf_search")
+                bf_results.append({
+                    "Symbol": symbol_link,
+                    "Score": bf_s,
+                    "Grade": bf_g,
+                    "CMP": cmp_v,
+                    "RSI (14)": rsi_v,
+                    "% Delivery": f"{deliv_v:.2f}%" if deliv_v is not None else "-",
+                    "Diff. from 200 DMA": diff200_v,
+                    "52W High": high52_v,
+                    "52W Low": low52_v,
+                    "Volume Trend": vol_trend_v,
+                    "Breakout Signal": breakout_v,
+                    "Trend": trend_v,
+                    "MACD Crossover": macd_v,
+                    "Buy Signal": buy_sig_v,
+                    "Sector": str(sector_v)[:30],
+                    "Key Reasons": " | ".join(bf_rsns[:3])
+                })
 
-    bf_results = []
-    for idx, row in filtered_df.iterrows():
-        clean_r = {k: v for k, v in row.items() if not str(k).startswith('_')}
-        bf_s, bf_g, bf_rsns = compute_bottom_fishing_score(clean_r, actual_cols)
-        if bf_s >= min_bf_score:
-            ticker = str(row.get('_raw_symbol_', '')).strip()
-            cmp_v = clean_r.get(cmp_target, "") if cmp_target else ""
-            sector_col = next((c for c in actual_cols if "sector" in c.lower()), None)
-            sector_v = clean_r.get(sector_col, "") if sector_col else ""
-            nse_chart_url = f"https://charting.nseindia.com/?symbol={ticker}-EQ"
-            symbol_link = f'<a href="{nse_chart_url}" target="_blank" style="text-decoration:none; color:#000000; font-weight:bold;">{ticker}</a>'
+        if bf_search:
+            bf_results = [r for r in bf_results if bf_search.upper() in re.sub(r'<[^>]*>', '', r["Symbol"]).upper()]
 
-            deliv_v = None
-            if deliv_target:
-                raw_dv = str(clean_r.get(deliv_target, "")).replace("%", "").replace(",", "").strip()
-                try:
-                    deliv_v = float(raw_dv) if raw_dv not in ["", "nan", "None"] else None
-                except ValueError:
-                    deliv_v = None
+        bf_results.sort(key=lambda x: x["Score"], reverse=(bf_sort == "Score (High→Low)"))
 
-            bf_results.append({
-                "Symbol": symbol_link,
-                "Score": bf_s,
-                "Grade": bf_g,
-                "CMP": cmp_v,
-                "% Delivery": f"{deliv_v:.2f}%" if deliv_v is not None else "-",
-                "Sector": str(sector_v)[:30],
-                "Key Reasons": " | ".join(bf_rsns[:3])
-            })
+        if bf_results:
+            st.success(f"✅ Found **{len(bf_results)}** stocks matching your bottom-fishing criteria (score ≥ {min_bf_score})")
+            bf_scan_df = pd.DataFrame(bf_results)
 
-    if bf_search:
-        bf_results = [r for r in bf_results if bf_search.upper() in re.sub(r'<[^>]*>', '', r["Symbol"]).upper()]
+            bf_gb = GridOptionsBuilder.from_dataframe(bf_scan_df)
+            bf_gb.configure_default_column(filter=True, sortable=True, resizable=True, floatingFilter=False, flex=0)
 
-    bf_results.sort(key=lambda x: x["Score"], reverse=(bf_sort == "Score (High→Low)"))
+            bf_score_style = JsCode("""
+            function(params) {
+                let val = parseFloat(params.value);
+                if (val >= 75) return { 'backgroundColor': '#16e37f33', 'color': '#000', 'fontWeight': 'bold' };
+                if (val >= 55) return { 'backgroundColor': '#f4b40033', 'color': '#000', 'fontWeight': 'bold' };
+                if (val >= 35) return { 'backgroundColor': '#ff990033', 'color': '#000' };
+                return { 'backgroundColor': '#ea433533', 'color': '#000' };
+            }
+            """)
 
-    if bf_results:
-        st.success(f"✅ Found **{len(bf_results)}** stocks matching your bottom-fishing criteria (score ≥ {min_bf_score})")
-        bf_scan_df = pd.DataFrame(bf_results)
+            trend_style_js = JsCode("""
+            function(params) {
+                let v = String(params.value).toLowerCase();
+                if (v.includes('strong uptrend') || v.includes('bullish') || v.includes('strong buy')) return { 'backgroundColor': '#16e37f33', 'color': '#000', 'fontWeight': 'bold' };
+                if (v.includes('uptrend') || v.includes('buy') || v.includes('high') || v.includes('yes')) return { 'backgroundColor': '#a5d6a733', 'color': '#000' };
+                if (v.includes('sideways') || v.includes('watch') || v.includes('normal')) return { 'backgroundColor': '#f4b40033', 'color': '#000' };
+                if (v.includes('bearish') || v.includes('avoid') || v.includes('low') || v.includes('downtrend')) return { 'backgroundColor': '#ea433533', 'color': '#000' };
+                return null;
+            }
+            """)
 
-        bf_gb = GridOptionsBuilder.from_dataframe(bf_scan_df)
+            bf_default_widths = {
+                "Symbol": 120, "Score": 90, "Grade": 160, "CMP": 100, "% Delivery": 110, "Sector": 200, "Key Reasons": 400,
+                "RSI (14)": 100, "Diff. from 200 DMA": 140, "52W High": 110, "52W Low": 110,
+                "Volume Trend": 120, "Breakout Signal": 130, "Trend": 130, "MACD Crossover": 130, "Buy Signal": 130,
+            }
+            for col in bf_scan_df.columns:
+                if bf_sizing_mode == "✅ Fit to Row 1" and len(bf_scan_df) > 0:
+                    char_count = get_clean_text_length(bf_scan_df.iloc[0][col])
+                    header_count = len(str(col))
+                    dyn_w = int(max(char_count, header_count) * 7 + 22)
+                elif bf_sizing_mode == "✅✅ Fit to Row 2" and len(bf_scan_df) > 1:
+                    char_count = get_clean_text_length(bf_scan_df.iloc[1][col])
+                    header_count = len(str(col))
+                    dyn_w = int(max(char_count, header_count) * 7 + 22)
+                else:
+                    dyn_w = bf_default_widths.get(col, 120)
 
-        bf_score_style = JsCode("""
-        function(params) {
-            let val = parseFloat(params.value);
-            if (val >= 75) return { 'backgroundColor': '#16e37f33', 'color': '#000', 'fontWeight': 'bold' };
-            if (val >= 55) return { 'backgroundColor': '#f4b40033', 'color': '#000', 'fontWeight': 'bold' };
-            if (val >= 35) return { 'backgroundColor': '#ff990033', 'color': '#000' };
-            return { 'backgroundColor': '#ea433533', 'color': '#000' };
-        }
-        """)
+                pinned = "left" if col == "Symbol" else None
+                min_w = max(70, min(dyn_w, 90))
+                if col == "Score":
+                    bf_gb.configure_column(col, width=dyn_w, minWidth=min_w, pinned=pinned, cellStyle=bf_score_style)
+                elif col == "Symbol":
+                    bf_gb.configure_column(col, width=dyn_w, minWidth=min_w, pinned=pinned, cellRenderer=html_renderer)
+                elif col in ("Volume Trend", "Breakout Signal", "Trend", "MACD Crossover", "Buy Signal"):
+                    bf_gb.configure_column(col, width=dyn_w, minWidth=min_w, pinned=pinned, cellStyle=trend_style_js)
+                else:
+                    bf_gb.configure_column(col, width=dyn_w, minWidth=min_w, pinned=pinned)
 
-        bf_default_widths = {"Symbol": 120, "Score": 90, "Grade": 160, "CMP": 100, "% Delivery": 110, "Sector": 200, "Key Reasons": 400}
-        for col in bf_scan_df.columns:
-            if bf_sizing_mode == "✅ Fit to Row 1" and len(bf_scan_df) > 0:
-                char_count = get_clean_text_length(bf_scan_df.iloc[0][col])
-                header_count = len(str(col))
-                dyn_w = int(max(char_count, header_count) * 7 + 22)
-            elif bf_sizing_mode == "✅✅ Fit to Row 2" and len(bf_scan_df) > 1:
-                char_count = get_clean_text_length(bf_scan_df.iloc[1][col])
-                header_count = len(str(col))
-                dyn_w = int(max(char_count, header_count) * 7 + 22)
-            else:
-                dyn_w = bf_default_widths.get(col, 120)
+            bf_gb.configure_grid_options(domLayout="normal", rowHeight=40, headerHeight=45, alwaysShowHorizontalScroll=True, suppressColumnVirtualisation=True)
+            bf_grid_ops = bf_gb.build()
 
-            pinned = "left" if col == "Symbol" else None
-            if col == "Score":
-                bf_gb.configure_column(col, width=dyn_w, pinned=pinned, cellStyle=bf_score_style)
-            elif col == "Symbol":
-                bf_gb.configure_column(col, width=dyn_w, pinned=pinned, cellRenderer=html_renderer)
-            else:
-                bf_gb.configure_column(col, width=dyn_w, pinned=pinned)
+            AgGrid(bf_scan_df, gridOptions=bf_grid_ops, theme="streamlit", allow_unsafe_jscode=True, fit_columns_on_grid_load=False, height=400, width='100%', key="bf_scanner_grid")
 
-        bf_gb.configure_grid_options(domLayout="normal", rowHeight=40, headerHeight=45)
-        bf_grid_ops = bf_gb.build()
+            # Export BF Scanner results
+            bf_buffer = io.BytesIO()
+            with pd.ExcelWriter(bf_buffer, engine='openpyxl') as writer:
+                clean_for_export(bf_scan_df).to_excel(writer, index=False, sheet_name="Bottom Fishing")
+            st.download_button("📥 Download BF Scanner Results", data=bf_buffer.getvalue(),
+                file_name=f"BottomFishing_{pd.Timestamp.now().strftime('%Y%m%d')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        else:
+            st.info(f"No stocks found with BF Score ≥ {min_bf_score}. Try lowering the minimum score.")
 
-        AgGrid(bf_scan_df, gridOptions=bf_grid_ops, theme="streamlit", allow_unsafe_jscode=True, fit_columns_on_grid_load=False, height=400, width='100%', key="bf_scanner_grid")
-
-        # Export BF Scanner results
-        bf_buffer = io.BytesIO()
-        with pd.ExcelWriter(bf_buffer, engine='openpyxl') as writer:
-            clean_for_export(bf_scan_df).to_excel(writer, index=False, sheet_name="Bottom Fishing")
-        st.download_button("📥 Download BF Scanner Results", data=bf_buffer.getvalue(),
-            file_name=f"BottomFishing_{pd.Timestamp.now().strftime('%Y%m%d')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    else:
-        st.info(f"No stocks found with BF Score ≥ {min_bf_score}. Try lowering the minimum score.")
+    render_bottom_fishing_scanner()
 
     # ==========================================
     # 🏆 DAILY DIRECT BADGES LEADERBOARD
