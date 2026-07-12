@@ -1636,7 +1636,7 @@ if not raw_df.empty:
     enforced_column_layout = core_sequence + all_other_fields + hidden_meta_attributes
     filtered_df = filtered_df[enforced_column_layout]
 
-        # ==========================================
+    # ==========================================
     # 🚀 EXECUTIVE DASHBOARD — AT-A-GLANCE MARKET SNAPSHOT
     # Summarizes whatever sheet + filters are currently active (filtered_df),
     # reusing the smart-guessed column variables (pct_target, vol_target,
