@@ -1714,6 +1714,7 @@ if not raw_df.empty:
     high_target = next((c for c in actual_cols if "52" in c.lower() and "high" in c.lower() and "date" not in c.lower() and "%" not in c.lower()), None)
     low_target = next((c for c in actual_cols if "52" in c.lower() and "low" in c.lower() and "date" not in c.lower() and "%" not in c.lower()), None)
     deliv_target = next((c for c in actual_cols if "delivery" in c.lower()), None)
+    vol_target = next((c for c in actual_cols if "volume" in c.lower() or c.lower().strip() == "vol"), None)
 
     # ── Additional smart-guess columns used by the Multi-Horizon Performance
     # Summary Matrix and the Bottom Fishing Scanner (RSI, Volume Trend,
