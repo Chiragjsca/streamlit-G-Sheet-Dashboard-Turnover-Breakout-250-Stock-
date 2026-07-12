@@ -1714,14 +1714,17 @@ if not raw_df.empty:
     high_target = next((c for c in actual_cols if "52" in c.lower() and "high" in c.lower() and "date" not in c.lower() and "%" not in c.lower()), None)
     low_target = next((c for c in actual_cols if "52" in c.lower() and "low" in c.lower() and "date" not in c.lower() and "%" not in c.lower()), None)
     deliv_target = next((c for c in actual_cols if "delivery" in c.lower()), None)
-    vol_target = next((c for c in actual_cols if "volume" in c.lower() or c.lower().strip() == "vol"), None)
+
+    # ── Additional smart-guess columns used by the Multi-Horizon Performance
+    # Summary Matrix and the Bottom Fishing Scanner (RSI, Volume Trend,
+    # Breakout Signal, Trend, MACD Crossover, Buy Signal, Diff from 200 DMA) ──
     rsi_target = next((c for c in actual_cols if "rsi" in c.lower()), None)
-    diff_200_target = next((c for c in actual_cols if "200" in c.lower() and ("dma" in c.lower() or "sma" in c.lower() or "diff" in c.lower() or "%" in c.lower())), None)
-    breakout_signal_target = next((c for c in actual_cols if "breakout" in c.lower() and "signal" in c.lower()), None)
-    buy_signal_target = next((c for c in actual_cols if "buy" in c.lower() and "signal" in c.lower()), None)
+    volume_trend_target = next((c for c in actual_cols if "volume trend" in c.lower()), None)
+    breakout_signal_target = next((c for c in actual_cols if "breakout signal" in c.lower()), None)
+    trend_target = next((c for c in actual_cols if "trend" in c.lower() and c != volume_trend_target and "dma" not in c.lower()), None)
     macd_crossover_target = next((c for c in actual_cols if "macd" in c.lower()), None)
-    trend_target = next((c for c in actual_cols if c.lower().strip() == "trend" or ("trend" in c.lower() and "volume" not in c.lower())), None)
-    volume_trend_target = next((c for c in actual_cols if "volume" in c.lower() and "trend" in c.lower()), None)
+    buy_signal_target = next((c for c in actual_cols if "buy signal" in c.lower()), None)
+    diff_200_target = next((c for c in actual_cols if "diff" in c.lower() and "200" in c.lower()), None)
 
     # If this sheet has a priority order configured (COLUMN_ORDER_BY_NAME /
     # COLUMN_ORDER_BY_LETTER near the top of the file), use it for column placement.
@@ -1732,7 +1735,7 @@ if not raw_df.empty:
             if col not in core_sequence:
                 core_sequence.append(col)
     else:
-        for target in (turn_target, close_target, cmp_target, pct_target, high_target, low_target):
+        for target in (vol_target, close_target, cmp_target, pct_target, high_target, low_target):
             if target and target not in core_sequence:
                 core_sequence.append(target)
 
@@ -1742,7 +1745,7 @@ if not raw_df.empty:
     enforced_column_layout = core_sequence + all_other_fields + hidden_meta_attributes
     filtered_df = filtered_df[enforced_column_layout]
 
-        # ==========================================
+    # ==========================================
     # 🚀 EXECUTIVE DASHBOARD — AT-A-GLANCE MARKET SNAPSHOT
     # Summarizes whatever sheet + filters are currently active (filtered_df),
     # reusing the smart-guessed column variables (pct_target, vol_target,
