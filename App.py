@@ -4271,6 +4271,8 @@ Be specific, data-driven, and actionable for a retail investor.
                 if h in display_perf_df.columns:
                     if h == "Volume":
                         display_perf_df[h] = display_perf_df[h].apply(lambda x: f"{int(x):,}" if pd.notnull(x) else "-")
+                    elif h == "Turnover":
+                        display_perf_df[h] = display_perf_df[h].apply(lambda x: f"{x:,.2f}" if pd.notnull(x) else "-")
                     else:
                         display_perf_df[h] = display_perf_df[h].apply(lambda x: f"+{x:.2f}%" if x > 0 else (f"{x:.2f}%" if x < 0 else "0.00%"))
 
